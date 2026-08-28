@@ -1,0 +1,307 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e4]:
+        - img [ref=e6]
+        - generic [ref=e8]:
+          - generic [ref=e9]: nothingmatters
+          - generic [ref=e10]: blog studio
+      - navigation [ref=e11]:
+        - button "대시보드" [ref=e12]:
+          - img [ref=e13]
+          - text: 대시보드
+        - button "새 글 만들기" [ref=e16]:
+          - img [ref=e17]
+          - text: 새 글 만들기
+        - button "글 보관함" [ref=e20]:
+          - img [ref=e21]
+          - text: 글 보관함
+        - button "제품/브랜드 설정" [ref=e24]:
+          - img [ref=e25]
+          - text: 제품/브랜드 설정
+    - generic [ref=e39]:
+      - banner [ref=e40]:
+        - generic [ref=e41]:
+          - button [ref=e42]:
+            - img [ref=e43]
+          - heading "새 글 만들기" [level=1] [ref=e45]
+          - generic [ref=e46]:
+            - img [ref=e47]
+            - text: 저장됨 10:35
+          - generic [ref=e50]: 데모 모드
+      - main [ref=e73]:
+        - generic [ref=e75]:
+          - generic [ref=e76]:
+            - generic [ref=e77]:
+              - heading "새 글 만들기" [level=2] [ref=e78]
+              - paragraph [ref=e79]: 사진 + 짧은 메모 + 글 주제로 제품 2개를 고르고 본문을 생성합니다.
+            - generic [ref=e80]:
+              - button "새로 시작" [ref=e81]
+              - button "선택값으로 본문 생성" [disabled] [ref=e329]:
+                - img [ref=e83]
+                - text: 선택값으로 본문 생성
+          - generic [ref=e86]:
+            - generic [ref=e87]:
+              - generic [ref=e88]:
+                - heading "생성 모드" [level=3] [ref=e89]
+                - paragraph [ref=e90]: 자동 모드는 관찰부터 검수까지 한 번에 진행하고, 반자동 모드는 단계별로 확인하면서 넘어갑니다.
+              - generic [ref=e91]:
+                - button "자동" [ref=e92]
+                - button "반자동" [active] [ref=e93]
+            - generic [ref=e330]:
+              - button "1 완료 사진 없음 텍스트만 진행" [ref=e331]:
+                - generic [ref=e332]:
+                  - generic [ref=e333]: "1"
+                  - generic [ref=e334]: 완료
+                - strong [ref=e335]: 사진 없음
+                - generic [ref=e336]: 텍스트만 진행
+              - button "2 대기 제품 2개 추천 아직 선택 전" [ref=e337]:
+                - generic [ref=e338]:
+                  - generic [ref=e339]: "2"
+                  - generic [ref=e340]: 대기
+                - strong [ref=e341]: 제품 2개 추천
+                - generic [ref=e342]: 아직 선택 전
+              - button "3 대기 본문 생성 제목/본문/FAQ/태그" [disabled] [ref=e343]:
+                - generic [ref=e344]:
+                  - generic [ref=e345]: "3"
+                  - generic [ref=e346]: 대기
+                - strong [ref=e347]: 본문 생성
+                - generic [ref=e348]: 제목/본문/FAQ/태그
+              - button "4 대기 최종 검수 생성 후 실행" [ref=e349]:
+                - generic [ref=e350]:
+                  - generic [ref=e351]: "4"
+                  - generic [ref=e352]: 대기
+                - strong [ref=e353]: 최종 검수
+                - generic [ref=e354]: 생성 후 실행
+          - generic [ref=e94]:
+            - generic [ref=e95]:
+              - generic [ref=e96]:
+                - heading "참고 스타일" [level=3] [ref=e97]
+                - paragraph [ref=e98]: 예제 글 원문은 쓰지 않고, 구조와 호흡만 패턴으로 반영합니다.
+              - generic [ref=e99]: 원문 미사용
+            - generic [ref=e100]:
+              - button "검색 유입 정보형 메인 키워드 + 고르는 기준 + 부담 없는 추천 각도" [ref=e101]:
+                - strong [ref=e102]: 검색 유입 정보형
+                - generic [ref=e103]: 메인 키워드 + 고르는 기준 + 부담 없는 추천 각도
+              - button "답례품 추천형 메인 키워드 + 상황 포인트 + 제품 2개 추천" [ref=e104]:
+                - strong [ref=e105]: 답례품 추천형
+                - generic [ref=e106]: 메인 키워드 + 상황 포인트 + 제품 2개 추천
+              - button "시즌 선물형 시즌 키워드 + 받는 사람 + 선물 구성 느낌" [ref=e107]:
+                - strong [ref=e108]: 시즌 선물형
+                - generic [ref=e109]: 시즌 키워드 + 받는 사람 + 선물 구성 느낌
+              - button "제품 디테일형 제품명 + 활용 상황 + 확인하면 좋은 포인트" [ref=e110]:
+                - strong [ref=e111]: 제품 디테일형
+                - generic [ref=e112]: 제품명 + 활용 상황 + 확인하면 좋은 포인트
+              - button "작업일기형 오늘 작업한 상황 + 제품명 + 작은 제작 포인트" [ref=e113]:
+                - strong [ref=e114]: 작업일기형
+                - generic [ref=e115]: 오늘 작업한 상황 + 제품명 + 작은 제작 포인트
+          - generic [ref=e116]:
+            - generic [ref=e117]:
+              - generic [ref=e118]:
+                - heading "제품 2개 선택" [level=3] [ref=e119]
+                - paragraph [ref=e120]: 한 글에는 제품 2개만 들어갑니다. 반자동 프롬프트도 여기서 고른 2개를 기준으로 만들어집니다.
+              - generic [ref=e121]:
+                - button "자동 추천 받기" [ref=e122]
+                - button "초기화" [ref=e123]
+            - generic [ref=e124]:
+              - generic [ref=e125]:
+                - generic [ref=e126]: 제품 A
+                - combobox "제품 A" [ref=e127]:
+                  - option "제품 선택" [selected]
+                  - option "브라우니쿠키"
+                  - option "커스텀형 브라우니쿠키"
+                  - option "수제쿠키 패키지"
+                  - option "곰돌이 스콘"
+                  - option "행운쿠키"
+                  - option "terminal 샌드쿠키"
+              - generic [ref=e128]:
+                - generic [ref=e129]: 제품 B
+                - combobox "제품 B" [ref=e130]:
+                  - option "제품 선택" [selected]
+                  - option "브라우니쿠키"
+                  - option "커스텀형 브라우니쿠키"
+                  - option "수제쿠키 패키지"
+                  - option "곰돌이 스콘"
+                  - option "행운쿠키"
+                  - option "terminal 샌드쿠키"
+          - generic [ref=e131]:
+            - generic [ref=e132]:
+              - generic [ref=e133]: 글 주제
+              - textbox "글 주제" [ref=e134]: 퇴사 답례품
+            - generic [ref=e135]:
+              - generic [ref=e136]: 메인 키워드
+              - textbox "메인 키워드" [ref=e137]: 퇴사 답례품
+            - generic [ref=e138]:
+              - generic [ref=e139]:
+                - text: 서브 키워드
+                - generic [ref=e140]: 쉼표로 구분
+              - textbox "서브 키워드 쉼표로 구분" [ref=e141]: 회사 답례품, 육아휴직 답례품, 커스텀 쿠키
+            - generic [ref=e142]:
+              - generic [ref=e143]: 글 타입
+              - combobox "글 타입" [ref=e144]:
+                - option "답례품 판매형" [selected]
+                - option "시즌 선물형"
+                - option "작업일기형"
+                - option "제품 소개형"
+                - option "검색 유입 정보형"
+            - generic [ref=e145]:
+              - generic [ref=e146]: 상황 설명
+              - textbox "상황 설명" [ref=e147]: 회사 마지막 날 팀원들에게 나눠줄 쿠키를 소개하는 글
+            - generic [ref=e148]:
+              - generic [ref=e149]: 짧은 메모
+              - textbox "짧은 메모" [ref=e150]: 문구를 넣을 수 있는 쿠키 답례품으로 소개하고 싶다.
+            - generic [ref=e151]:
+              - generic [ref=e152]: CTA
+              - textbox "CTA" [ref=e153]: 필요한 날짜와 수량만 먼저 알려주셔도 괜찮아요. 어떤 구성이 편할지 같이 정리해볼게요.
+          - generic [ref=e155]:
+            - generic [ref=e156]: 사진 업로드
+            - generic [ref=e157]:
+              - button "사진 업로드 완성품, 포장, 디테일, 제작 과정 사진을 올려주세요. 사진 선택" [ref=e158]
+              - generic [ref=e159] [cursor=pointer]:
+                - generic [ref=e160]:
+                  - img [ref=e162]
+                  - text: 완성품, 포장, 디테일, 제작 과정 사진을 올려주세요.
+                - button "사진 선택" [ref=e166]
+          - generic [ref=e355]:
+            - generic [ref=e357]:
+              - heading "반자동 GPT 작업" [level=3] [ref=e358]
+              - paragraph [ref=e359]: 프롬프트는 화면에 펼치지 않고 생성 즉시 복사합니다. GPT 결과 JSON만 아래에 붙여넣으면 됩니다.
+            - generic [ref=e360]:
+              - generic [ref=e361]:
+                - button "네이버 프롬프트 생성+복사" [disabled] [ref=e362]:
+                  - img [ref=e363]
+                  - generic [ref=e366]: 네이버 프롬프트 생성+복사
+                - button "워드프레스 프롬프트 생성+복사" [disabled] [ref=e367]:
+                  - img [ref=e368]
+                  - generic [ref=e371]: 워드프레스 프롬프트 생성+복사
+              - generic [ref=e373]:
+                - generic [ref=e374]:
+                  - generic [ref=e375]:
+                    - text: GPT JSON 출력 붙여넣기
+                    - generic [ref=e376]: GPT가 출력한 JSON 전체를 붙여넣기
+                  - generic [ref=e377]:
+                    - textbox "GPT JSON 출력 붙여넣기 GPT가 출력한 JSON 전체를 붙여넣기 아직 JSON이 비어 있어요. GPT 출력값을 붙여넣어 주세요." [ref=e378]:
+                      - /placeholder: "{ ... }"
+                    - paragraph [ref=e379]: 아직 JSON이 비어 있어요. GPT 출력값을 붙여넣어 주세요.
+                - button "JSON 비우기" [ref=e380]
+              - button "JSON 붙여넣은 뒤 반영하기" [ref=e381]:
+                - img [ref=e382]
+                - text: JSON 붙여넣은 뒤 반영하기
+        - complementary [ref=e167]:
+          - generic [ref=e168]:
+            - generic [ref=e169]:
+              - generic [ref=e170]:
+                - heading "모바일 미리보기" [level=2] [ref=e171]
+                - paragraph [ref=e172]: 네이버와 워드프레스 버전을 각각 확인하세요.
+              - generic [ref=e173]:
+                - button "네이버" [ref=e174]
+                - button "워드프레스" [ref=e175]
+            - generic [ref=e176]:
+              - generic [ref=e177]:
+                - generic [ref=e178]: blog
+                - generic [ref=e179]:
+                  - img [ref=e180]
+                  - img [ref=e183]
+              - article [ref=e184]:
+                - heading "퇴사 답례품, 문구까지 담고 싶다면 이런 쿠키가 좋아요" [level=3] [ref=e185]
+                - generic [ref=e186]:
+                  - generic [ref=e187]: 🍪
+                  - text: nothingmatters · 방금 전
+                - paragraph [ref=e192]: 주제와 메모를 입력하면 모바일 미리보기가 여기에 표시됩니다.
+              - generic [ref=e193]:
+                - generic [ref=e194]:
+                  - img [ref=e195]
+                  - text: 공감
+                - generic [ref=e197]:
+                  - img [ref=e198]
+                  - text: 댓글
+                - img [ref=e200]
+          - generic [ref=e206]:
+            - generic [ref=e207]:
+              - heading "품질/SEO 체크" [level=2] [ref=e208]
+              - generic [ref=e209]: 청량
+            - generic [ref=e210]:
+              - generic [ref=e211]:
+                - generic [ref=e212]:
+                  - img [ref=e213]
+                  - text: 키워드 수
+                - strong [ref=e216]: 0회
+              - generic [ref=e217]:
+                - generic [ref=e218]:
+                  - img [ref=e219]
+                  - text: 본문 길이
+                - strong [ref=e221]: 0자
+              - generic [ref=e222]:
+                - generic [ref=e223]:
+                  - img [ref=e224]
+                  - text: 광고 느낌
+                - strong [ref=e226]: 0점
+              - generic [ref=e227]:
+                - generic [ref=e228]:
+                  - img [ref=e229]
+                  - text: 이미지 수
+                - strong [ref=e233]: 0개
+              - generic [ref=e234]:
+                - generic [ref=e235]:
+                  - img [ref=e236]
+                  - text: 예제 패턴
+                - strong [ref=e239]: 0점
+              - generic [ref=e240]:
+                - generic [ref=e241]:
+                  - img [ref=e242]
+                  - text: 후기 조작
+                - strong [ref=e244]: 0점
+              - generic [ref=e245]:
+                - generic [ref=e246]:
+                  - img [ref=e247]
+                  - text: 문단 호흡
+                - strong [ref=e250]: 0점
+          - generic [ref=e251]:
+            - generic [ref=e252]:
+              - heading "프롬프트 검수" [level=2] [ref=e253]
+              - button "검수 실행" [disabled] [ref=e254]:
+                - img [ref=e255]
+                - text: 검수 실행
+            - paragraph [ref=e257]: 과장 표현, 없는 사실, 제품 수, 모바일 문단 길이를 생성 후 한 번 더 확인합니다.
+          - generic [ref=e258]:
+            - heading "선택된 제품" [level=2] [ref=e259]
+            - paragraph [ref=e261]: 글을 생성하면 제품 2개가 표시됩니다.
+          - generic [ref=e262]:
+            - heading "복사/내보내기" [level=2] [ref=e263]
+            - generic [ref=e264]:
+              - button "네이버 전체 본문" [ref=e265]:
+                - generic [ref=e266]: 네이버 전체 본문
+                - img [ref=e267]
+              - button "네이버 제목" [ref=e270]:
+                - generic [ref=e271]: 네이버 제목
+                - img [ref=e272]
+              - button "네이버 해시태그" [ref=e275]:
+                - generic [ref=e276]: 네이버 해시태그
+                - img [ref=e277]
+              - button "네이버 FAQ" [ref=e280]:
+                - generic [ref=e281]: 네이버 FAQ
+                - img [ref=e282]
+              - button "네이버 이미지 가이드" [ref=e285]:
+                - generic [ref=e286]: 네이버 이미지 가이드
+                - img [ref=e287]
+              - button "WP Markdown" [ref=e290]:
+                - generic [ref=e291]: WP Markdown
+                - img [ref=e292]
+              - button "WP 제목" [ref=e295]:
+                - generic [ref=e296]: WP 제목
+                - img [ref=e297]
+              - button "WP 메타 설명" [ref=e300]:
+                - generic [ref=e301]: WP 메타 설명
+                - img [ref=e302]
+              - button "WP 태그" [ref=e305]:
+                - generic [ref=e306]: WP 태그
+                - img [ref=e307]
+              - button "WP 이미지 ALT" [ref=e310]:
+                - generic [ref=e311]: WP 이미지 ALT
+                - img [ref=e312]
+          - generic [ref=e315]:
+            - heading "이미지 가이드" [level=2] [ref=e316]
+            - paragraph [ref=e318]: 생성 후 이미지 배치 안내가 나옵니다.
+  - button "Open Next.js Dev Tools" [ref=e324] [cursor=pointer]:
+    - img [ref=e325]
+  - alert [ref=e328]

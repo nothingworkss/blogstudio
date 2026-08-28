@@ -1,0 +1,459 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e4]:
+        - img [ref=e6]
+        - generic [ref=e8]:
+          - generic [ref=e9]: nothingmatters
+          - generic [ref=e10]: blog studio
+      - navigation [ref=e11]:
+        - button "대시보드" [ref=e12]:
+          - img [ref=e13]
+          - text: 대시보드
+        - button "새 글 만들기" [ref=e16]:
+          - img [ref=e17]
+          - text: 새 글 만들기
+        - button "글 보관함" [ref=e20]:
+          - img [ref=e21]
+          - text: 글 보관함
+        - button "제품/브랜드 설정" [ref=e24]:
+          - img [ref=e25]
+          - text: 제품/브랜드 설정
+    - generic [ref=e39]:
+      - banner [ref=e40]:
+        - generic [ref=e41]:
+          - button [ref=e42]:
+            - img [ref=e43]
+          - heading "새 글 만들기" [level=1] [ref=e45]
+          - generic [ref=e46]:
+            - img [ref=e47]
+            - text: 저장됨 10:35
+          - generic [ref=e50]: 데모 모드
+      - main [ref=e73]:
+        - generic [ref=e74]:
+          - generic [ref=e385]: 붙여넣은 JSON을 초안으로 반영했습니다.
+          - generic [ref=e401]:
+            - generic [ref=e403]:
+              - button "네이버 블로그" [ref=e404]
+              - button "워드프레스" [ref=e405]
+            - generic [ref=e406]:
+              - generic [ref=e407]:
+                - heading "제목 후보" [level=2] [ref=e408]
+                - button "새 제목 추천" [ref=e409]:
+                  - img [ref=e410]
+                  - text: 새 제목 추천
+              - generic [ref=e415]:
+                - button "1 퇴사 답례품 쿠키, 문구를 담아 준비하면 어떨까요?" [ref=e416]:
+                  - generic [ref=e417]: "1"
+                  - generic [ref=e418]: 퇴사 답례품 쿠키, 문구를 담아 준비하면 어떨까요?
+                - button "2 퇴사 답례품 쿠키, 팀원들에게 나누기 부담되시나요?" [ref=e419]:
+                  - generic [ref=e420]: "2"
+                  - generic [ref=e421]: 퇴사 답례품 쿠키, 팀원들에게 나누기 부담되시나요?
+                - button "3 퇴사 답례품 쿠키, 포장과 수량은 어떻게 보면 좋을까요?" [ref=e422]:
+                  - generic [ref=e423]: "3"
+                  - generic [ref=e424]: 퇴사 답례품 쿠키, 포장과 수량은 어떻게 보면 좋을까요?
+                - button "4 회사 마지막 날 팀원들에게 돌릴 답례품, 어떤 쿠키 구성이 좋을까요?" [ref=e425]:
+                  - generic [ref=e426]: "4"
+                  - generic [ref=e427]: 회사 마지막 날 팀원들에게 돌릴 답례품, 어떤 쿠키 구성이 좋을까요?
+                - button "5 마지막 인사에 문구를 담고 싶다면 퇴사 답례품 쿠키는 어떨까요?" [ref=e428]:
+                  - generic [ref=e429]: "5"
+                  - generic [ref=e430]: 마지막 인사에 문구를 담고 싶다면 퇴사 답례품 쿠키는 어떨까요?
+            - generic [ref=e432]:
+              - generic [ref=e433]:
+                - text: 최종 제목
+                - generic [ref=e434]: 28 / 60
+              - textbox "최종 제목 28 / 60" [ref=e435]: 퇴사 답례품 쿠키, 문구를 담아 준비하면 어떨까요?
+            - generic [ref=e436]:
+              - generic [ref=e437]:
+                - generic [ref=e438]:
+                  - heading "프롬프트형 빠른 수정" [level=2] [ref=e439]
+                  - paragraph [ref=e440]: 마음에 안 드는 부분만 골라 다시 다듬을 수 있습니다.
+                - generic [ref=e441]: 부분 재생성
+              - generic [ref=e442]:
+                - button "제목 다시" [ref=e443]
+                - button "제품 추천만 다시" [ref=e444]
+                - button "FAQ만 다시" [ref=e445]
+                - button "광고 느낌 줄이기" [ref=e446]
+                - button "더 자연스럽게" [ref=e447]
+                - button "사장님 말투" [ref=e448]
+                - button "모바일 줄바꿈" [ref=e449]
+                - button "최종 검수" [ref=e450]
+            - generic [ref=e451]:
+              - generic [ref=e452]:
+                - generic [ref=e453]:
+                  - heading "글 풍성하게" [level=2] [ref=e454]
+                  - paragraph [ref=e455]: 내부 예제에서 뽑은 패턴만 사용해 도입부, 기준, FAQ, CTA, 이미지 가이드를 보강합니다.
+                - generic [ref=e456]: 패턴 기반
+              - generic [ref=e457]:
+                - button "도입부 현실 고민" [ref=e458]:
+                  - img [ref=e459]
+                  - text: 도입부 현실 고민
+                - button "선택 기준 3개" [ref=e462]
+                - button "FAQ 현실적으로" [ref=e463]
+                - button "CTA 부드럽게" [ref=e464]
+                - button "이미지 배치 자세히" [ref=e465]
+            - generic [ref=e467]:
+              - generic [ref=e468]:
+                - heading "도입부" [level=3] [ref=e469]
+                - generic [ref=e470]:
+                  - button "다시 쓰기" [ref=e471]:
+                    - img [ref=e472]
+                    - text: 다시 쓰기
+                  - button "짧게" [ref=e477]:
+                    - img [ref=e478]
+                    - text: 짧게
+                  - button "풍성하게" [ref=e481]:
+                    - img [ref=e482]
+                    - text: 풍성하게
+                  - button "자연스럽게" [ref=e485]:
+                    - img [ref=e486]
+                    - text: 자연스럽게
+                  - button "판매감 줄이기" [ref=e489]
+                  - button "사장님 말투" [ref=e490]
+                  - button "모바일 줄바꿈" [ref=e491]
+              - textbox [ref=e492]: 퇴사 답례품 테스트 본문입니다. 문구를 짧게 담고 싶다면 커스텀형 브라우니쿠키를 기준으로 보면 편합니다.
+              - generic [ref=e493]: 58 / 800
+            - generic [ref=e495]:
+              - generic [ref=e496]:
+                - heading "상황 공감" [level=3] [ref=e497]
+                - generic [ref=e498]:
+                  - button "다시 쓰기" [ref=e499]:
+                    - img [ref=e500]
+                    - text: 다시 쓰기
+                  - button "짧게" [ref=e505]:
+                    - img [ref=e506]
+                    - text: 짧게
+                  - button "풍성하게" [ref=e509]:
+                    - img [ref=e510]
+                    - text: 풍성하게
+                  - button "자연스럽게" [ref=e513]:
+                    - img [ref=e514]
+                    - text: 자연스럽게
+                  - button "판매감 줄이기" [ref=e517]
+                  - button "사장님 말투" [ref=e518]
+                  - button "모바일 줄바꿈" [ref=e519]
+              - textbox [ref=e520]: 회사 마지막 날 팀원들에게 나눠줄 쿠키를 소개하는 글
+              - generic [ref=e521]: 29 / 800
+            - generic [ref=e522]:
+              - generic [ref=e523]:
+                - generic [ref=e524]:
+                  - generic [ref=e525]:
+                    - heading "커스텀형 브라우니쿠키 본문 요약" [level=3] [ref=e526]
+                    - paragraph [ref=e527]: 본문 첫 줄은 직접 만드는 사람이 조용히 기준을 골라주듯 들어갑니다.
+                  - generic [ref=e528]: 요약 준비
+                - paragraph [ref=e530]: "**사장님한마디 😎** 커스텀형 브라우니쿠키은 퇴사 답례품 상황에서 어떤 마음을 전하고 싶은지 먼저 보면 더 자연스럽게 소개할 수 있습니다."
+              - generic [ref=e531]:
+                - generic [ref=e532]:
+                  - heading "문구를 담고 싶다면, 커스텀형 브라우니쿠키" [level=3] [ref=e533]
+                  - generic [ref=e534]:
+                    - button "다시 쓰기" [ref=e535]:
+                      - img [ref=e536]
+                      - text: 다시 쓰기
+                    - button "짧게" [ref=e541]:
+                      - img [ref=e542]
+                      - text: 짧게
+                    - button "풍성하게" [ref=e545]:
+                      - img [ref=e546]
+                      - text: 풍성하게
+                    - button "자연스럽게" [ref=e549]:
+                      - img [ref=e550]
+                      - text: 자연스럽게
+                    - button "판매감 줄이기" [ref=e553]
+                    - button "사장님 말투" [ref=e554]
+                    - button "모바일 줄바꿈" [ref=e555]
+                - textbox [ref=e556]: "**사장님한마디 😎** 커스텀형 브라우니쿠키은 퇴사 답례품 상황에서 어떤 마음을 전하고 싶은지 먼저 보면 더 자연스럽게 소개할 수 있습니다. 짧은 감사 문구를 담기 좋아서 퇴사 답례품 상황에 맞습니다."
+                - generic [ref=e557]: 114 / 800
+            - generic [ref=e558]:
+              - generic [ref=e559]:
+                - generic [ref=e560]:
+                  - generic [ref=e561]:
+                    - heading "행운쿠키 본문 요약" [level=3] [ref=e562]
+                    - paragraph [ref=e563]: 본문 첫 줄은 직접 만드는 사람이 조용히 기준을 골라주듯 들어갑니다.
+                  - generic [ref=e564]: 요약 준비
+                - paragraph [ref=e566]: "**사장님한마디 😎** 행운쿠키은 퇴사 답례품 상황에서 어떤 마음을 전하고 싶은지 먼저 보면 더 자연스럽게 소개할 수 있습니다."
+              - generic [ref=e567]:
+                - generic [ref=e568]:
+                  - heading "가볍게 마음을 전하고 싶을 때, 행운쿠키" [level=3] [ref=e569]
+                  - generic [ref=e570]:
+                    - button "다시 쓰기" [ref=e571]:
+                      - img [ref=e572]
+                      - text: 다시 쓰기
+                    - button "짧게" [ref=e577]:
+                      - img [ref=e578]
+                      - text: 짧게
+                    - button "풍성하게" [ref=e581]:
+                      - img [ref=e582]
+                      - text: 풍성하게
+                    - button "자연스럽게" [ref=e585]:
+                      - img [ref=e586]
+                      - text: 자연스럽게
+                    - button "판매감 줄이기" [ref=e589]
+                    - button "사장님 말투" [ref=e590]
+                    - button "모바일 줄바꿈" [ref=e591]
+                - textbox [ref=e592]: "**사장님한마디 😎** 행운쿠키은 퇴사 답례품 상황에서 어떤 마음을 전하고 싶은지 먼저 보면 더 자연스럽게 소개할 수 있습니다. 가볍게 감사와 응원을 전하고 싶을 때 편하게 나누기 좋습니다."
+                - generic [ref=e593]: 108 / 800
+            - generic [ref=e595]:
+              - generic [ref=e596]:
+                - heading "이런 분들께 좋아요" [level=3] [ref=e597]
+                - generic [ref=e598]:
+                  - button "다시 쓰기" [ref=e599]:
+                    - img [ref=e600]
+                    - text: 다시 쓰기
+                  - button "짧게" [ref=e605]:
+                    - img [ref=e606]
+                    - text: 짧게
+                  - button "풍성하게" [ref=e609]:
+                    - img [ref=e610]
+                    - text: 풍성하게
+                  - button "자연스럽게" [ref=e613]:
+                    - img [ref=e614]
+                    - text: 자연스럽게
+                  - button "판매감 줄이기" [ref=e617]
+                  - button "사장님 말투" [ref=e618]
+                  - button "모바일 줄바꿈" [ref=e619]
+              - textbox [ref=e620]: ✅ 상황에 맞는 답례품을 찾는 분 ✅ 문구와 포장을 함께 고민하는 분 ✅ 여러 명에게 깔끔하게 나눠야 하는 분
+              - generic [ref=e621]: 61 / 800
+            - generic [ref=e623]:
+              - generic [ref=e624]:
+                - heading "주문 전 체크포인트" [level=3] [ref=e625]
+                - generic [ref=e626]:
+                  - button "다시 쓰기" [ref=e627]:
+                    - img [ref=e628]
+                    - text: 다시 쓰기
+                  - button "짧게" [ref=e633]:
+                    - img [ref=e634]
+                    - text: 짧게
+                  - button "풍성하게" [ref=e637]:
+                    - img [ref=e638]
+                    - text: 풍성하게
+                  - button "자연스럽게" [ref=e641]:
+                    - img [ref=e642]
+                    - text: 자연스럽게
+                  - button "판매감 줄이기" [ref=e645]
+                  - button "사장님 말투" [ref=e646]
+                  - button "모바일 줄바꿈" [ref=e647]
+              - textbox [ref=e648]: ✅ 필요한 날짜 ✅ 예상 수량 ✅ 원하는 문구 ✅ 포장 방식 ✅ 픽업 또는 차량 퀵 여부
+              - generic [ref=e649]: 49 / 800
+            - generic [ref=e651]:
+              - generic [ref=e652]:
+                - heading "마무리" [level=3] [ref=e653]
+                - generic [ref=e654]:
+                  - button "다시 쓰기" [ref=e655]:
+                    - img [ref=e656]
+                    - text: 다시 쓰기
+                  - button "짧게" [ref=e661]:
+                    - img [ref=e662]
+                    - text: 짧게
+                  - button "풍성하게" [ref=e665]:
+                    - img [ref=e666]
+                    - text: 풍성하게
+                  - button "자연스럽게" [ref=e669]:
+                    - img [ref=e670]
+                    - text: 자연스럽게
+                  - button "판매감 줄이기" [ref=e673]
+                  - button "사장님 말투" [ref=e674]
+                  - button "모바일 줄바꿈" [ref=e675]
+              - textbox [ref=e676]: 필요한 날짜와 수량만 먼저 알려주셔도 괜찮아요. 어떤 구성이 편할지 같이 정리해볼게요.
+              - generic [ref=e677]: 48 / 800
+            - generic [ref=e678]:
+              - heading "FAQ" [level=3] [ref=e679]
+              - textbox [ref=e680]: Q. 문구를 넣을 수 있나요? A. 가능한 문구 길이를 먼저 보고 방향을 잡는 편이 좋아요. Q. 소량도 가능한가요? A. 제품과 구성에 따라 달라질 수 있어 필요한 수량을 먼저 봐요. Q. 언제 문의하면 좋을까요? A. 필요한 날짜가 정해졌다면 여유 있게 문의하는 편이 좋습니다. Q. 포장은 어떻게 정하나요? A. 전달 방식과 인원수에 맞춰 같이 좁혀볼 수 있어요.
+            - generic [ref=e681]:
+              - generic [ref=e682]:
+                - heading "해시태그" [level=3] [ref=e683]
+                - button "정리하기" [ref=e684]:
+                  - img [ref=e685]
+                  - text: 정리하기
+              - generic [ref=e690]:
+                - img [ref=e691]
+                - textbox [ref=e694]: "#퇴사답례품 #퇴사선물 #회사답례품 #육아휴직답례품 #커스텀쿠키 #브라우니쿠키 #행운쿠키 #수제쿠키답례품 #쿠키답례품 #낫띵메터스 #커스텀형브라우니쿠키 #답례품쿠키 #수제쿠키 #nothingmatters"
+              - generic [ref=e695]: 14 / 30
+        - complementary [ref=e167]:
+          - generic [ref=e168]:
+            - generic [ref=e169]:
+              - generic [ref=e170]:
+                - heading "모바일 미리보기" [level=2] [ref=e171]
+                - paragraph [ref=e172]: 네이버와 워드프레스 버전을 각각 확인하세요.
+              - generic [ref=e173]:
+                - button "네이버" [ref=e174]
+                - button "워드프레스" [ref=e175]
+            - generic [ref=e176]:
+              - generic [ref=e177]:
+                - generic [ref=e178]: blog
+                - generic [ref=e179]:
+                  - img [ref=e180]
+                  - img [ref=e183]
+              - article [ref=e184]:
+                - heading "퇴사 답례품 쿠키, 문구를 담아 준비하면 어떨까요?" [level=3] [ref=e696]
+                - generic [ref=e186]:
+                  - generic [ref=e187]: 🍪
+                  - text: nothingmatters · 방금 전
+                - generic [ref=e697]:
+                  - generic [ref=e698]:
+                    - heading "도입부" [level=4] [ref=e699]
+                    - paragraph [ref=e700]: 퇴사 답례품 테스트 본문입니다. 문구를 짧게 담고 싶다면 커스텀형 브라우니쿠키를 기준으로 보면 편합니다.
+                  - generic [ref=e701]:
+                    - heading "상황 공감" [level=4] [ref=e702]
+                    - paragraph [ref=e703]: 회사 마지막 날 팀원들에게 나눠줄 쿠키를 소개하는 글
+                  - generic [ref=e704]:
+                    - heading "문구를 담고 싶다면, 커스텀형 브라우니쿠키" [level=4] [ref=e705]
+                    - paragraph [ref=e706]: "**사장님한마디 😎** 커스텀형 브라우니쿠키은 퇴사 답례품 상황에서 어떤 마음을 전하고 싶은지 먼저 보면 더 자연스럽게 소개할 수 있습니다. 짧은 감사 문구를 담기 좋아서 퇴사 답례품 상황에 맞습니다."
+                  - generic [ref=e707]:
+                    - heading "가볍게 마음을 전하고 싶을 때, 행운쿠키" [level=4] [ref=e708]
+                    - paragraph [ref=e709]: "**사장님한마디 😎** 행운쿠키은 퇴사 답례품 상황에서 어떤 마음을 전하고 싶은지 먼저 보면 더 자연스럽게 소개할 수 있습니다. 가볍게 감사와 응원을 전하고 싶을 때 편하게 나누기 좋습니다."
+                  - generic [ref=e710]:
+                    - heading "이런 분들께 좋아요" [level=4] [ref=e711]
+                    - paragraph [ref=e712]: ✅ 상황에 맞는 답례품을 찾는 분 ✅ 문구와 포장을 함께 고민하는 분 ✅ 여러 명에게 깔끔하게 나눠야 하는 분
+                  - generic [ref=e713]:
+                    - heading "주문 전 체크포인트" [level=4] [ref=e714]
+                    - paragraph [ref=e715]: ✅ 필요한 날짜 ✅ 예상 수량 ✅ 원하는 문구 ✅ 포장 방식 ✅ 픽업 또는 차량 퀵 여부
+                  - generic [ref=e716]:
+                    - heading "마무리" [level=4] [ref=e717]
+                    - paragraph [ref=e718]: 필요한 날짜와 수량만 먼저 알려주셔도 괜찮아요. 어떤 구성이 편할지 같이 정리해볼게요.
+                  - generic [ref=e719]:
+                    - heading "FAQ" [level=4] [ref=e720]
+                    - generic [ref=e721]:
+                      - generic [ref=e722]:
+                        - strong [ref=e723]: Q. 문구를 넣을 수 있나요?
+                        - generic [ref=e724]: A. 가능한 문구 길이를 먼저 보고 방향을 잡는 편이 좋아요.
+                      - generic [ref=e725]:
+                        - strong [ref=e726]: Q. 소량도 가능한가요?
+                        - generic [ref=e727]: A. 제품과 구성에 따라 달라질 수 있어 필요한 수량을 먼저 봐요.
+                      - generic [ref=e728]:
+                        - strong [ref=e729]: Q. 언제 문의하면 좋을까요?
+                        - generic [ref=e730]: A. 필요한 날짜가 정해졌다면 여유 있게 문의하는 편이 좋습니다.
+                      - generic [ref=e731]:
+                        - strong [ref=e732]: Q. 포장은 어떻게 정하나요?
+                        - generic [ref=e733]: A. 전달 방식과 인원수에 맞춰 같이 좁혀볼 수 있어요.
+                  - paragraph [ref=e734]: "#퇴사답례품 #퇴사선물 #회사답례품 #육아휴직답례품 #커스텀쿠키 #브라우니쿠키 #행운쿠키 #수제쿠키답례품 #쿠키답례품 #낫띵메터스 #커스텀형브라우니쿠키 #답례품쿠키 #수제쿠키 #nothingmatters"
+                  - generic [ref=e735]:
+                    - heading "이미지 배치" [level=4] [ref=e736]
+                    - generic [ref=e737]:
+                      - paragraph [ref=e738]:
+                        - strong [ref=e739]: 도입부 아래
+                        - text: · 대표 사진
+                      - paragraph [ref=e740]:
+                        - strong [ref=e741]: 커스텀형 브라우니쿠키 소개 뒤
+                        - text: · 문구 디테일
+                      - paragraph [ref=e742]:
+                        - strong [ref=e743]: 행운쿠키 소개 뒤
+                        - text: · 포장 사진
+              - generic [ref=e193]:
+                - generic [ref=e194]:
+                  - img [ref=e195]
+                  - text: 공감
+                - generic [ref=e197]:
+                  - img [ref=e198]
+                  - text: 댓글
+                - img [ref=e200]
+          - generic [ref=e206]:
+            - generic [ref=e207]:
+              - heading "품질/SEO 체크" [level=2] [ref=e208]
+              - generic [ref=e209]: 확인 필요
+            - generic [ref=e210]:
+              - generic [ref=e211]:
+                - generic [ref=e212]:
+                  - img [ref=e213]
+                  - text: 키워드 수
+                - strong [ref=e216]: 6회
+              - generic [ref=e217]:
+                - generic [ref=e218]:
+                  - img [ref=e219]
+                  - text: 본문 길이
+                - strong [ref=e221]: 922자
+              - generic [ref=e222]:
+                - generic [ref=e223]:
+                  - img [ref=e224]
+                  - text: 광고 느낌
+                - strong [ref=e226]: 12점
+              - generic [ref=e227]:
+                - generic [ref=e228]:
+                  - img [ref=e229]
+                  - text: 이미지 수
+                - strong [ref=e233]: 3개
+              - generic [ref=e234]:
+                - generic [ref=e235]:
+                  - img [ref=e236]
+                  - text: 예제 패턴
+                - strong [ref=e239]: 84점
+              - generic [ref=e240]:
+                - generic [ref=e241]:
+                  - img [ref=e242]
+                  - text: 후기 조작
+                - strong [ref=e244]: 0점
+              - generic [ref=e245]:
+                - generic [ref=e246]:
+                  - img [ref=e247]
+                  - text: 문단 호흡
+                - strong [ref=e250]: 100점
+            - generic [ref=e744]: 이미지 배치 가이드를 4개 이상으로 늘리면 실사용성이 좋아집니다.
+          - generic [ref=e251]:
+            - generic [ref=e252]:
+              - heading "프롬프트 검수" [level=2] [ref=e253]
+              - button "검수 실행" [ref=e254]:
+                - img [ref=e255]
+                - text: 검수 실행
+            - paragraph [ref=e257]: 과장 표현, 없는 사실, 제품 수, 모바일 문단 길이를 생성 후 한 번 더 확인합니다.
+          - generic [ref=e258]:
+            - heading "선택된 제품" [level=2] [ref=e259]
+            - generic [ref=e260]:
+              - generic [ref=e745]:
+                - strong [ref=e746]: 커스텀형 브라우니쿠키
+                - text: 문구를 남기고 싶은 답례품
+              - generic [ref=e747]:
+                - strong [ref=e748]: 행운쿠키
+                - text: 작은 응원처럼 전하는 답례품
+          - generic [ref=e262]:
+            - heading "복사/내보내기" [level=2] [ref=e263]
+            - generic [ref=e264]:
+              - button "네이버 전체 본문" [ref=e265]:
+                - generic [ref=e266]: 네이버 전체 본문
+                - img [ref=e267]
+              - button "네이버 제목" [ref=e270]:
+                - generic [ref=e271]: 네이버 제목
+                - img [ref=e272]
+              - button "네이버 해시태그" [ref=e275]:
+                - generic [ref=e276]: 네이버 해시태그
+                - img [ref=e277]
+              - button "네이버 FAQ" [ref=e280]:
+                - generic [ref=e281]: 네이버 FAQ
+                - img [ref=e282]
+              - button "네이버 이미지 가이드" [ref=e285]:
+                - generic [ref=e286]: 네이버 이미지 가이드
+                - img [ref=e287]
+              - button "WP Markdown" [ref=e290]:
+                - generic [ref=e291]: WP Markdown
+                - img [ref=e292]
+              - button "WP 제목" [ref=e295]:
+                - generic [ref=e296]: WP 제목
+                - img [ref=e297]
+              - button "WP 메타 설명" [ref=e300]:
+                - generic [ref=e301]: WP 메타 설명
+                - img [ref=e302]
+              - button "WP 태그" [ref=e305]:
+                - generic [ref=e306]: WP 태그
+                - img [ref=e307]
+              - button "WP 이미지 ALT" [ref=e310]:
+                - generic [ref=e311]: WP 이미지 ALT
+                - img [ref=e312]
+          - generic [ref=e315]:
+            - heading "이미지 가이드" [level=2] [ref=e316]
+            - generic [ref=e317]:
+              - generic [ref=e749]:
+                - generic [ref=e750]:
+                  - strong [ref=e751]: 도입부 아래
+                  - text: 대표 사진
+                - generic [ref=e752]: 1 / 1
+              - generic [ref=e753]:
+                - generic [ref=e754]:
+                  - strong [ref=e755]: 커스텀형 브라우니쿠키 소개 뒤
+                  - text: 문구 디테일
+                - generic [ref=e756]: 1 / 1
+              - generic [ref=e757]:
+                - generic [ref=e758]:
+                  - strong [ref=e759]: 행운쿠키 소개 뒤
+                  - text: 포장 사진
+                - generic [ref=e760]: 1 / 1
+  - button "Open Next.js Dev Tools" [ref=e324] [cursor=pointer]:
+    - img [ref=e325]
+  - alert [ref=e328]
