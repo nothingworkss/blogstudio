@@ -1,8 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  --background: #fbf7ef;
-  --foreground: #2f2923;
+  --background: #f6f5f2;
+  --foreground: #18181b;
+  --surface: #ffffff;
+  --surface-muted: #f1f0ec;
+  --border: #deddd8;
+  --muted: #696964;
+  --accent: #c9364f;
+  --accent-strong: #ad243d;
 }
 
 @theme inline {
@@ -31,8 +37,8 @@ body {
 }
 
 ::selection {
-  background: #ffd8d2;
-  color: #2f2923;
+  background: #ffd9df;
+  color: #18181b;
 }
 
 button,
@@ -42,33 +48,81 @@ select {
   font: inherit;
 }
 
-body {
-  letter-spacing: 0;
+button,
+summary,
+select {
+  cursor: pointer;
 }
 
-.header-actions {
-  width: calc(100vw - 24px);
-  max-width: calc(100vw - 24px);
+button:disabled,
+select:disabled {
+  cursor: not-allowed;
 }
 
-.header-action-button {
-  width: calc((100vw - 40px) / 3);
-  max-width: calc((100vw - 40px) / 3);
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.studio-select {
+  min-height: 44px;
+  width: 100%;
   min-width: 0;
-  padding-inline: 4px;
-  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  padding-inline: 12px;
+  color: var(--foreground);
+  font-size: 14px;
+  transition: border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
 }
 
-@media (min-width: 640px) {
-  .header-actions {
-    width: auto;
-    max-width: none;
+.studio-select:hover {
+  border-color: #b9b7b0;
+}
+
+.studio-select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgb(232 84 100 / 10%);
+  outline: none;
+}
+
+.ui-enter {
+  animation: ui-enter 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.details-chevron {
+  transition: transform 180ms ease;
+}
+
+details[open] .details-chevron {
+  transform: rotate(180deg);
+}
+
+@keyframes ui-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
   }
 
-  .header-action-button {
-    width: auto;
-    max-width: none;
-    padding-inline: 12px;
-    font-size: 13px;
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

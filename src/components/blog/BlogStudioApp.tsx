@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import {
   BarChart3,
   CheckCircle2,
+  ChevronDown,
   FileText,
   Hash,
   Image as ImageIcon,
@@ -60,8 +61,8 @@ type ManualPromptKind = "naver" | "wordpress";
 type ManualCopyState = "idle" | "copying" | "copied" | "failed";
 type ManualCopyStateMap = Record<ManualPromptKind, ManualCopyState>;
 
-const modeButtonClass = "h-8 rounded px-3 text-[12px] font-bold text-[#786e64] transition hover:bg-white";
-const modeButtonActiveClass = "h-8 rounded bg-white px-3 text-[12px] font-bold text-[#ef6759] shadow-[0_1px_4px_rgba(60,45,30,0.08)]";
+const modeButtonClass = "h-9 rounded-[8px] px-3 text-[12px] font-bold text-[#5f5f5a] transition-colors hover:bg-white hover:text-[#18181b]";
+const modeButtonActiveClass = "h-9 rounded-[8px] bg-white px-3 text-[12px] font-bold text-[#b4233f] shadow-[0_1px_5px_rgba(24,24,27,0.08)]";
 const idleManualCopyState: ManualCopyStateMap = { naver: "idle", wordpress: "idle" };
 
 const defaultInput: BlogDraftInput = {
@@ -465,20 +466,41 @@ export function BlogStudioApp({
     setNotice(response.ok ? "브랜드 설정을 저장했습니다." : "브랜드 설정 저장에 실패했습니다.");
   }
 
+  async function copyNaverDraft() {
+    if (!output?.plain_text_for_naver) {
+      setNotice("복사할 네이버 본문이 없습니다. 먼저 글을 생성해 주세요.");
+      return;
+    }
+
+    const copied = await copyTextToClipboard(output.plain_text_for_naver);
+    setNotice(copied ? "네이버 전체 본문을 클립보드에 복사했습니다." : "브라우저 복사 권한을 확인해 주세요.");
+  }
+
   return (
-    <div className="flex min-h-screen flex-col overflow-x-hidden bg-[#fbf7ef] text-[#2f2923] lg:flex-row">
+    <div className="flex min-h-screen flex-col overflow-x-hidden bg-[#f6f5f2] text-[#18181b] lg:flex-row">
       <Sidebar activeView={view} onNavigate={navigate} />
       <div className="min-w-0 flex-1">
         <Header
-          title={view === "dashboard" ? "대시보드" : view === "drafts" ? "글 보관함" : view === "products" ? "제품/브랜드 설정" : "새 글 만들기"}
+          title={view === "dashboard" ? "대시보드" : view === "drafts" ? "글 보관함" : view === "products" ? "제품/브랜드 설정" : view === "editor" ? "글 편집" : "새 글 만들기"}
           isDemoMode={isDemoMode}
+          showBack={view !== "dashboard"}
+          showNew={view !== "new" && view !== "dashboard"}
+          canPreview={Boolean(output) && view !== "editor"}
+          canCopy={Boolean(output)}
+          onBack={() => setView("dashboard")}
+          onNew={resetNewPost}
           onPreview={() => setView("editor")}
-          onSave={() => setNotice("현재 초안은 자동 저장 방식으로 관리됩니다.")}
+          onCopy={() => void copyNaverDraft()}
         />
-        <main className="grid min-h-[calc(100vh-56px)] w-full min-w-0 max-w-full grid-cols-1 gap-4 overflow-x-hidden p-3 sm:p-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-          <div className="min-w-0">
+        <main
+          className={[
+            "mx-auto grid min-h-[calc(100vh-64px)] w-full min-w-0 max-w-[1600px] grid-cols-1 gap-5 overflow-x-hidden p-3 sm:p-5 lg:p-6",
+            view === "editor" ? "xl:grid-cols-[minmax(0,1fr)_360px]" : "",
+          ].join(" ")}
+        >
+          <div className="ui-enter min-w-0">
             {notice ? (
-              <div className="mb-3 rounded-md border border-[#edd8a1] bg-[#fff8df] px-3 py-2 text-[13px] text-[#7b612a]">
+              <div role="status" aria-live="polite" className="mb-4 rounded-[12px] border border-[#efdcaa] border-l-[3px] border-l-[#d6a62f] bg-[#fff9e8] px-4 py-3 text-[13px] font-medium text-[#755a1f] shadow-[0_4px_16px_rgba(24,24,27,0.03)]">
                 {notice}
               </div>
             ) : null}
@@ -560,13 +582,15 @@ export function BlogStudioApp({
               />
             ) : null}
           </div>
-          <RightRail
-            output={output}
-            seoCheck={seoCheck}
-            qualityCheck={qualityCheck}
-            isChecking={runningStep === "check"}
-            onCheck={() => checkDraftStep()}
-          />
+          {view === "editor" ? (
+            <RightRail
+              output={output}
+              seoCheck={seoCheck}
+              qualityCheck={qualityCheck}
+              isChecking={runningStep === "check"}
+              onCheck={() => checkDraftStep()}
+            />
+          ) : null}
         </main>
       </div>
     </div>
@@ -588,50 +612,67 @@ function DashboardView({
   const keywordSummary = Array.from(new Set(keywords)).slice(0, 8);
 
   return (
-    <div className="grid gap-4">
-      <section className="rounded-md border border-[#e5ddd2] bg-white p-4">
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-[18px] font-bold text-[#2f2923]">오늘 만들 글</h2>
-            <p className="mt-1 text-[13px] text-[#7b7166]">시즌과 답례품 키워드를 빠르게 시작하세요.</p>
+    <div className="grid gap-6">
+      <section className="overflow-hidden rounded-[20px] bg-[#18181b] px-5 py-6 text-white shadow-[0_18px_50px_rgba(24,24,27,0.14)] sm:px-7 sm:py-8 lg:px-10 lg:py-9">
+        <div className="flex flex-col items-start justify-between gap-6 lg:flex-row lg:items-end">
+          <div className="max-w-2xl">
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#f09aa5]">Today&apos;s workspace</p>
+            <h2 className="mt-3 text-[26px] font-black tracking-[-0.04em] sm:text-[34px]">오늘 만들 글, 바로 시작하세요.</h2>
+            <p className="mt-3 max-w-xl text-[14px] leading-6 text-[#c8c8c4]">
+              주제와 짧은 메모만 정하면 제품 선택부터 네이버·워드프레스 초안까지 한 흐름으로 완성됩니다.
+            </p>
           </div>
-          <Button type="button" variant="primary" icon={<Plus className="size-4" />} onClick={() => onNew("퇴사 답례품")}>
-            빠른 새 글
+          <Button type="button" variant="primary" className="h-11 w-full px-5 sm:w-auto" icon={<Plus className="size-4" />} onClick={() => onNew("퇴사 답례품")}>
+            새 글 시작
           </Button>
         </div>
-        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <div className="mt-7 grid border-t border-white/15 sm:grid-cols-2 lg:grid-cols-4">
           {starterTopics.map((topic) => (
             <button
               key={topic}
-              className="rounded-md border border-[#e5ddd2] bg-[#fffdf9] px-3 py-3 text-left text-[14px] font-semibold text-[#403932] hover:border-[#efaaa2] hover:bg-[#fff8f5]"
+              type="button"
+              className="group flex min-h-14 items-center justify-between border-b border-white/15 px-1 text-left text-[13px] font-semibold text-[#dededb] transition-colors hover:text-white sm:px-3 sm:[&:nth-child(even)]:border-l lg:border-b-0 lg:border-l lg:first:border-l-0"
               onClick={() => onNew(topic)}
             >
               {topic}
+              <span aria-hidden className="text-[#f09aa5] transition-transform duration-200 group-hover:translate-x-1">→</span>
             </button>
           ))}
         </div>
       </section>
-      <div className="grid gap-4 lg:grid-cols-3">
+      <section aria-label="작업 현황" className="grid overflow-hidden rounded-[16px] border border-[#deddd8] bg-white sm:grid-cols-3 sm:divide-x sm:divide-[#e7e6e1]">
         <MetricCard icon={<FileText className="size-4" />} label="전체 초안" value={`${drafts.length}`} />
         <MetricCard icon={<CheckCircle2 className="size-4" />} label="활성 제품" value={`${products.filter((item) => item.is_active).length}`} />
         <MetricCard icon={<Hash className="size-4" />} label="자주 쓰는 키워드" value={`${keywordSummary.length || 6}`} />
-      </div>
-      <section className="rounded-md border border-[#e5ddd2] bg-white p-4">
-        <h2 className="mb-3 text-[16px] font-bold">최근 초안</h2>
-        <div className="grid gap-2">
-          {(drafts.length ? drafts : sampleDraftRows).map((draft) => (
+      </section>
+      <section className="rounded-[16px] border border-[#deddd8] bg-white p-4 sm:p-6">
+        <div className="mb-4 flex items-end justify-between gap-4">
+          <div>
+            <h2 className="text-[18px] font-bold tracking-[-0.02em]">최근 초안</h2>
+            <p className="mt-1 text-[12px] text-[#6f6f6a]">마지막으로 작업한 글부터 이어서 편집할 수 있습니다.</p>
+          </div>
+          <span className="text-[12px] font-semibold text-[#6f6f6a]">{drafts.length}개</span>
+        </div>
+        <div className="divide-y divide-[#e7e6e1] border-y border-[#e7e6e1]">
+          {drafts.length ? drafts.map((draft) => (
             <button
               key={draft.id}
-              className="flex items-center justify-between rounded-md border border-[#efe6db] px-3 py-3 text-left hover:bg-[#fffaf2]"
-              onClick={() => "content_json" in draft && onOpenDraft(draft as BlogDraftRecord)}
+              type="button"
+              className="group flex w-full items-center justify-between gap-4 px-1 py-4 text-left transition-colors hover:bg-[#fafaf8] sm:px-3"
+              onClick={() => onOpenDraft(draft)}
             >
-              <span>
-                <strong className="block text-[14px] text-[#332d27]">{draft.title}</strong>
-                <span className="text-[12px] text-[#8a8177]">{draft.main_keyword} · {draft.post_type}</span>
+              <span className="min-w-0">
+                <strong className="block truncate text-[14px] text-[#27272a]">{draft.title}</strong>
+                <span className="mt-1 block truncate text-[12px] text-[#6f6f6a]">{draft.main_keyword} · {draft.post_type}</span>
               </span>
-              <StatusPill tone="success">임시저장</StatusPill>
+              <span aria-hidden className="shrink-0 text-[#aaa9a3] transition-transform duration-200 group-hover:translate-x-1 group-hover:text-[#b4233f]">→</span>
             </button>
-          ))}
+          )) : (
+            <div className="flex flex-col items-start gap-3 px-1 py-7 sm:flex-row sm:items-center sm:justify-between sm:px-3">
+              <p className="text-[13px] leading-6 text-[#6f6f6a]">아직 저장된 초안이 없습니다. 위 추천 주제로 첫 글을 시작해 보세요.</p>
+              <Button type="button" variant="secondary" onClick={() => onNew("퇴사 답례품")}>첫 글 만들기</Button>
+            </div>
+          )}
         </div>
       </section>
     </div>
@@ -692,51 +733,27 @@ function NewPostView({
   const isBusy = isGenerating || Boolean(runningStep);
 
   return (
-    <section className="w-full min-w-0 max-w-full overflow-hidden rounded-md border border-[#e5ddd2] bg-white p-4">
-      <div className="mb-5 flex min-w-0 flex-col items-start justify-between gap-4 sm:flex-row">
-        <div className="min-w-0 max-w-full">
-          <h2 className="text-[18px] font-bold">새 글 만들기</h2>
-          <p className="mt-1 text-[13px] text-[#7b7166]">사진 + 짧은 메모 + 글 주제로 제품 2개를 고르고 본문을 생성합니다.</p>
-        </div>
-        <div className="grid w-full gap-2 sm:w-auto sm:grid-cols-[104px_minmax(180px,auto)]">
-          <Button type="button" variant="secondary" className="w-full whitespace-nowrap sm:w-auto" onClick={onReset}>
-            새로 시작
-          </Button>
-          <Button
-            type="button"
-            variant="primary"
-            className="w-full max-w-full whitespace-nowrap sm:w-auto"
-            icon={isGenerating ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-            onClick={onGenerate}
-            disabled={isBusy || (mode === "semi" && selectedProducts.length !== 2)}
-          >
-            {mode === "semi" ? "선택값으로 본문 생성" : "자동으로 끝까지 생성"}
-          </Button>
-        </div>
-      </div>
-      <div className="mb-5 border-y border-[#f0e7dc] py-4">
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0 max-w-full">
-            <h3 className="text-[14px] font-bold text-[#362f28]">생성 모드</h3>
-            <p className="mt-1 text-[12px] leading-5 text-[#7b7166]">
-              자동 모드는 관찰부터 검수까지 한 번에 진행하고, 반자동 모드는 단계별로 확인하면서 넘어갑니다.
-            </p>
+    <div aria-busy={isBusy} className="grid w-full min-w-0 gap-5">
+      <section className="rounded-[18px] border border-[#deddd8] bg-white p-5 sm:p-6">
+        <div className="flex min-w-0 flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+          <div className="min-w-0 max-w-2xl">
+            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#b4233f]">New article</p>
+            <h2 className="mt-2 text-[24px] font-black tracking-[-0.04em] text-[#18181b] sm:text-[28px]">새 글의 기준을 정해 주세요.</h2>
+            <p className="mt-2 text-[13px] leading-6 text-[#70706a]">주제와 상황을 입력하고 제품 2개만 고르면 나머지는 생성 엔진이 이어서 정리합니다.</p>
           </div>
-          <div className="grid shrink-0 grid-cols-2 rounded-md border border-[#ded8ce] bg-[#faf7f0] p-1">
-            <button
-              type="button"
-              className={mode === "auto" ? modeButtonActiveClass : modeButtonClass}
-              onClick={() => onMode("auto")}
-            >
-              자동
-            </button>
-            <button
-              type="button"
-              className={mode === "semi" ? modeButtonActiveClass : modeButtonClass}
-              onClick={() => onMode("semi")}
-            >
-              반자동
-            </button>
+          <Button type="button" variant="ghost" className="shrink-0" onClick={onReset}>입력 비우기</Button>
+        </div>
+      </section>
+
+      <section className="rounded-[16px] border border-[#deddd8] bg-white p-4 sm:p-5">
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-4">
+          <div className="min-w-0 max-w-2xl">
+            <h3 className="text-[14px] font-bold text-[#27272a]">생성 방식</h3>
+            <p className="mt-1 text-[12px] leading-5 text-[#6f6f6a]">자동은 한 번에 완성하고, 반자동은 제품과 프롬프트를 단계별로 확인합니다.</p>
+          </div>
+          <div className="grid shrink-0 grid-cols-2 rounded-[10px] border border-[#deddd8] bg-[#f1f0ec] p-1">
+            <button type="button" className={mode === "auto" ? modeButtonActiveClass : modeButtonClass} onClick={() => onMode("auto")}>자동</button>
+            <button type="button" className={mode === "semi" ? modeButtonActiveClass : modeButtonClass} onClick={() => onMode("semi")}>반자동</button>
           </div>
         </div>
         {mode === "semi" ? (
@@ -779,11 +796,47 @@ function NewPostView({
             />
           </div>
         ) : null}
-      </div>
-      <ReferenceStyleSelector
-        value={input.reference_style}
-        onChange={(referenceStyle) => onInput({ ...input, reference_style: referenceStyle })}
-      />
+      </section>
+
+      <section className="rounded-[16px] border border-[#deddd8] bg-white p-4 sm:p-5">
+        <div className="mb-5 flex items-center justify-between gap-4 border-b border-[#ecebe7] pb-4">
+          <div>
+            <h3 className="text-[16px] font-bold text-[#27272a]">글 기본 정보</h3>
+            <p className="mt-1 text-[12px] text-[#6f6f6a]">검색 주제와 실제 상황을 먼저 입력해 주세요.</p>
+          </div>
+          <StatusPill tone="success">필수</StatusPill>
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Field label="글 주제">
+            <Input value={input.topic} placeholder="예: 퇴사 답례품" onChange={(event) => onInput({ ...input, topic: event.target.value })} />
+          </Field>
+          <Field label="메인 키워드" hint="본문 전체 3회 기준">
+            <Input value={input.main_keyword} placeholder="예: 퇴사 답례품" onChange={(event) => onInput({ ...input, main_keyword: event.target.value })} />
+          </Field>
+          <Field label="서브 키워드" hint="쉼표로 구분">
+            <Input value={input.sub_keywords.join(", ")} placeholder="회사 답례품, 커스텀 쿠키" onChange={(event) => onInput({ ...input, sub_keywords: splitByComma(event.target.value) })} />
+          </Field>
+          <Field label="글 타입">
+            <select
+              className="studio-select"
+              value={input.post_type}
+              onChange={(event) => {
+                const postType = event.target.value as PostType;
+                onInput({ ...input, post_type: postType, reference_style: styleFromPostType(postType) });
+              }}
+            >
+              {postTypes.map((type) => <option key={type}>{type}</option>)}
+            </select>
+          </Field>
+          <Field label="상황 설명">
+            <Textarea value={input.situation} placeholder="누구에게, 언제, 어떤 마음으로 전할 글인지 적어 주세요." onChange={(event) => onInput({ ...input, situation: event.target.value })} />
+          </Field>
+          <Field label="짧은 메모">
+            <Textarea value={input.raw_memo} placeholder="글에 꼭 들어갔으면 하는 제품 특징이나 문장을 적어 주세요." onChange={(event) => onInput({ ...input, raw_memo: event.target.value })} />
+          </Field>
+        </div>
+      </section>
+
       <ProductPairSelector
         products={products}
         selectedProducts={selectedProducts}
@@ -792,65 +845,38 @@ function NewPostView({
         onAutoSelect={onSelectProducts}
         onClear={onClearProducts}
       />
-      <ProductDetailQuestionCard
-        input={input}
-        products={products}
-        selectedProducts={selectedProducts}
-        onAnswer={onProductDetailAnswer}
-      />
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Field label="글 주제">
-          <Input value={input.topic} onChange={(event) => onInput({ ...input, topic: event.target.value })} />
-        </Field>
-        <Field label="메인 키워드">
-          <Input value={input.main_keyword} onChange={(event) => onInput({ ...input, main_keyword: event.target.value })} />
-        </Field>
-        <Field label="서브 키워드" hint="쉼표로 구분">
-          <Input
-            value={input.sub_keywords.join(", ")}
-            onChange={(event) => onInput({ ...input, sub_keywords: splitByComma(event.target.value) })}
-          />
-        </Field>
-        <Field label="글 타입">
-          <select
-            className="h-10 w-full min-w-0 rounded-md border border-[#ded8ce] bg-white px-3 text-[14px]"
-            value={input.post_type}
-            onChange={(event) => {
-              const postType = event.target.value as PostType;
-              onInput({ ...input, post_type: postType, reference_style: styleFromPostType(postType) });
-            }}
-          >
-            {postTypes.map((type) => (
-              <option key={type}>{type}</option>
-            ))}
-          </select>
-        </Field>
-        <Field label="상황 설명">
-          <Textarea value={input.situation} onChange={(event) => onInput({ ...input, situation: event.target.value })} />
-        </Field>
-        <Field label="짧은 메모">
-          <Textarea value={input.raw_memo} onChange={(event) => onInput({ ...input, raw_memo: event.target.value })} />
-        </Field>
-        <Field label="CTA">
-          <Textarea value={input.cta} onChange={(event) => onInput({ ...input, cta: event.target.value })} />
-        </Field>
-      </div>
-      <div className="mt-4 grid gap-3">
-        <Field label="사진 업로드">
-          <ImageUploader
-            onUploaded={(image) => onInput({ ...input, images: [...input.images, image] })}
-          />
-        </Field>
-        {images.length ? (
-          <div className="flex flex-wrap gap-2">
-            {images.map((image) => (
-              <span key={image.id} className="rounded-md border border-[#eadfd2] bg-[#fffaf4] px-2 py-1 text-[12px] text-[#665d53]">
-                {image.name}
-              </span>
-            ))}
+
+      <details className="group rounded-[16px] border border-[#deddd8] bg-white">
+        <summary className="flex min-h-16 list-none items-center justify-between gap-4 px-4 py-3 sm:px-5">
+          <span>
+            <strong className="block text-[14px] text-[#27272a]">고급 설정</strong>
+            <span className="mt-1 block text-[12px] text-[#6f6f6a]">참고 스타일 · 제품 상세 · CTA · 사진</span>
+          </span>
+          <ChevronDown aria-hidden className="details-chevron size-4 shrink-0 text-[#6f6f6a]" />
+        </summary>
+        <div className="border-t border-[#ecebe7] p-4 sm:p-5">
+          <ReferenceStyleSelector value={input.reference_style} onChange={(referenceStyle) => onInput({ ...input, reference_style: referenceStyle })} />
+          <ProductDetailQuestionCard input={input} products={products} selectedProducts={selectedProducts} onAnswer={onProductDetailAnswer} />
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Field label="마무리 CTA" hint="선택 입력">
+              <Textarea value={input.cta} onChange={(event) => onInput({ ...input, cta: event.target.value })} />
+            </Field>
+            <div className="grid gap-3">
+              <Field label="사진 업로드" hint="선택 입력">
+                <ImageUploader onUploaded={(image) => onInput({ ...input, images: [...input.images, image] })} />
+              </Field>
+              {images.length ? (
+                <div className="flex flex-wrap gap-2">
+                  {images.map((image) => (
+                    <span key={image.id} className="rounded-full border border-[#deddd8] bg-[#f7f6f3] px-2.5 py-1 text-[11px] text-[#62625d]">{image.name}</span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
           </div>
-        ) : null}
-      </div>
+        </div>
+      </details>
+
       {mode === "semi" ? (
         <SemiManualPanel
           canCreatePrompt={selectedProducts.length === 2}
@@ -861,7 +887,24 @@ function NewPostView({
           onApplyManualJson={onApplyManualJson}
         />
       ) : null}
-    </section>
+
+      <section className="sticky bottom-3 z-10 flex flex-col gap-3 rounded-[16px] border border-[#d6d5cf] bg-white/94 p-3 shadow-[0_16px_40px_rgba(24,24,27,0.14)] backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between sm:p-4">
+        <div className="min-w-0">
+          <strong className="block text-[13px] text-[#27272a]">{mode === "semi" ? `선택 제품 ${selectedProducts.length}/2` : "자동 생성 준비"}</strong>
+          <span className="mt-0.5 block truncate text-[11px] text-[#6f6f6a]">{mode === "semi" ? "제품 2개를 선택하면 본문 생성을 시작할 수 있습니다." : "사진 관찰부터 최종 검수까지 한 번에 진행합니다."}</span>
+        </div>
+        <Button
+          type="button"
+          variant="primary"
+          className="h-11 w-full shrink-0 px-5 sm:w-auto"
+          icon={isGenerating ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+          onClick={onGenerate}
+          disabled={isBusy || (mode === "semi" && selectedProducts.length !== 2)}
+        >
+          {mode === "semi" ? "선택값으로 본문 생성" : "자동으로 끝까지 생성"}
+        </Button>
+      </section>
+    </div>
   );
 }
 
@@ -873,11 +916,11 @@ function ReferenceStyleSelector({
   onChange: (style: ReferenceStyle) => void;
 }) {
   return (
-    <section className="mb-5 w-full min-w-0 max-w-full overflow-hidden rounded-md border border-[#eadfd2] bg-[#fffdf9] p-3">
+    <section className="mb-5 w-full min-w-0 max-w-full overflow-hidden rounded-[12px] border border-[#e5e4df] bg-[#fafaf8] p-4">
       <div className="mb-3 flex min-w-0 flex-wrap items-center justify-between gap-3">
         <div className="min-w-0 max-w-full">
-          <h3 className="text-[14px] font-bold text-[#362f28]">참고 스타일</h3>
-          <p className="mt-1 text-[12px] leading-5 text-[#7b7166]">
+          <h3 className="text-[14px] font-bold text-[#27272a]">참고 스타일</h3>
+          <p className="mt-1 text-[12px] leading-5 text-[#6f6f6a]">
             예제 글 원문은 쓰지 않고, 구조와 호흡만 패턴으로 반영합니다.
           </p>
         </div>
@@ -892,15 +935,15 @@ function ReferenceStyleSelector({
               key={style}
               type="button"
               className={[
-                "min-w-0 rounded-md border px-3 py-3 text-left transition",
+                "min-w-0 rounded-[10px] border px-3 py-3 text-left transition-colors duration-200",
                 active
-                  ? "border-[#efaaa2] bg-[#fff4ef] text-[#4a3429] shadow-[0_1px_4px_rgba(60,45,30,0.08)]"
-                  : "border-[#eadfd2] bg-white text-[#665d53] hover:border-[#efaaa2] hover:bg-[#fff8f5]",
+                  ? "border-[#c9364f] bg-[#fff1f3] text-[#3f2430] shadow-[0_1px_5px_rgba(24,24,27,0.06)]"
+                  : "border-[#deddd8] bg-white text-[#62625d] hover:border-[#b9b7b0] hover:text-[#18181b]",
               ].join(" ")}
               onClick={() => onChange(style)}
             >
               <strong className="block truncate text-[12px]">{pattern.label}</strong>
-              <span className="mt-1 line-clamp-2 block text-[11px] leading-4 text-[#81766b]">{pattern.titlePattern}</span>
+              <span className="mt-1 line-clamp-2 block text-[11px] leading-4 text-[#6f6f6a]">{pattern.titlePattern}</span>
             </button>
           );
         })}
@@ -928,11 +971,11 @@ function ProductPairSelector({
   const secondName = selectedProducts[1]?.product_name ?? "";
 
   return (
-    <section className="mb-5 w-full min-w-0 max-w-full overflow-hidden rounded-md border border-[#eadfd2] bg-[#fffdf9] p-3">
-      <div className="mb-3 flex min-w-0 flex-wrap items-center justify-between gap-3">
+    <section className="w-full min-w-0 max-w-full overflow-hidden rounded-[16px] border border-[#deddd8] bg-white p-4 sm:p-5">
+      <div className="mb-4 flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-[#ecebe7] pb-4">
         <div className="min-w-0 max-w-full">
-          <h3 className="text-[14px] font-bold text-[#362f28]">제품 2개 선택</h3>
-          <p className="mt-1 text-[12px] leading-5 text-[#7b7166]">
+          <h3 className="text-[16px] font-bold text-[#27272a]">소개할 제품 2개</h3>
+          <p className="mt-1 text-[12px] leading-5 text-[#6f6f6a]">
             한 글에는 제품 2개만 들어갑니다. 반자동 프롬프트도 여기서 고른 2개를 기준으로 만들어집니다.
           </p>
         </div>
@@ -948,7 +991,7 @@ function ProductPairSelector({
       <div className="grid gap-3 md:grid-cols-2">
         <Field label="제품 A">
           <select
-            className="h-10 w-full min-w-0 rounded-md border border-[#ded8ce] bg-white px-3 text-[14px]"
+            className="studio-select"
             value={firstName}
             disabled={isBusy}
             onChange={(event) => onProductSlot(0, event.target.value)}
@@ -963,7 +1006,7 @@ function ProductPairSelector({
         </Field>
         <Field label="제품 B">
           <select
-            className="h-10 w-full min-w-0 rounded-md border border-[#ded8ce] bg-white px-3 text-[14px]"
+            className="studio-select"
             value={secondName}
             disabled={isBusy}
             onChange={(event) => onProductSlot(1, event.target.value)}
@@ -978,11 +1021,14 @@ function ProductPairSelector({
         </Field>
       </div>
       {selectedProducts.length ? (
-        <div className="mt-3 grid gap-2 md:grid-cols-2">
-          {selectedProducts.map((product) => (
-            <div key={product.product_name} className="rounded-md border border-[#f0e8dd] bg-white p-2">
-              <strong className="block text-[12px] text-[#332d27]">{product.product_name}</strong>
-              <span className="mt-1 block text-[11px] leading-5 text-[#7d7267]">{product.angle}</span>
+        <div className="mt-4 divide-y divide-[#ecebe7] border-y border-[#ecebe7] md:grid md:grid-cols-2 md:divide-x md:divide-y-0">
+          {selectedProducts.map((product, index) => (
+            <div key={product.product_name} className="flex min-w-0 items-start gap-3 px-1 py-3 md:px-4">
+              <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[#18181b] text-[11px] font-bold text-white">{index + 1}</span>
+              <span className="min-w-0">
+                <strong className="block truncate text-[12px] text-[#27272a]">{product.product_name}</strong>
+                <span className="mt-1 line-clamp-2 block text-[11px] leading-5 text-[#6f6f6a]">{product.angle}</span>
+              </span>
             </div>
           ))}
         </div>
@@ -1010,7 +1056,7 @@ function ProductDetailQuestionCard({
   const missingCount = selectedProductModels.reduce((sum, product) => sum + getMissingEditorialInfo(product, input).length, 0);
 
   return (
-    <section className="mb-5 rounded-md border border-[#eadfd2] bg-[#fffdf9] p-3">
+    <section className="mb-5 rounded-[12px] border border-[#e5e4df] bg-[#fafaf8] p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="text-[14px] font-bold text-[#362f28]">자동 질문 카드</h3>
@@ -1089,7 +1135,7 @@ function SemiManualPanel({
   const hasManualJson = manualJson.trim().length > 0;
 
   return (
-    <section className="mt-4 w-full min-w-0 max-w-full overflow-hidden rounded-md border border-[#eadfd2] bg-white p-3">
+    <section className="w-full min-w-0 max-w-full overflow-hidden rounded-[16px] border border-[#deddd8] bg-white p-4 sm:p-5">
       <div className="mb-3 flex min-w-0 flex-wrap items-center justify-between gap-3">
         <div className="min-w-0 max-w-full">
           <h3 className="text-[14px] font-bold text-[#362f28]">반자동 GPT 작업</h3>
@@ -1115,7 +1161,7 @@ function SemiManualPanel({
             <p
               className={[
                 "rounded-md px-3 py-2 text-center text-[12px] font-bold transition-all duration-300",
-                isCopied ? "animate-pulse bg-[#ecf8ef] text-[#287845]" : "",
+                isCopied ? "bg-[#ecf8ef] text-[#287845]" : "",
                 isCopying ? "bg-[#fff8df] text-[#8a6b1f]" : "",
                 isFailed ? "bg-[#fff4f1] text-[#d84e43]" : "",
               ].join(" ")}
@@ -1158,7 +1204,7 @@ function SemiManualPanel({
         <Button
           type="button"
           variant="primary"
-          className={hasManualJson ? "h-11 animate-pulse text-[13px] font-bold" : "h-11 text-[13px] font-bold"}
+          className="h-11 text-[13px] font-bold"
           icon={hasManualJson ? <CheckCircle2 className="size-4" /> : <FileText className="size-4" />}
           onClick={onApplyManualJson}
         >
@@ -1194,17 +1240,17 @@ function ManualPromptButton({
   const promptButtonIcon = isCopying ? (
     <Loader2 className="size-4 animate-spin" />
   ) : isCopied ? (
-    <CheckCircle2 className="size-4 animate-bounce" />
+    <CheckCircle2 className="size-4" />
   ) : isFailed ? (
     <ShieldAlert className="size-4" />
   ) : (
     <WandSparkles className="size-4" />
   );
   const promptButtonClass = [
-    "relative h-12 w-full overflow-hidden text-[13px] font-bold shadow-[0_10px_24px_rgba(60,45,30,0.16)] transition-all duration-300",
-    isCopied ? "scale-[1.02] border-[#34a853] bg-[#34a853] text-white ring-4 ring-[#34a853]/20 hover:bg-[#2f9a4c]" : "",
+    "relative h-12 w-full overflow-hidden text-[13px] font-bold shadow-[0_10px_24px_rgba(24,24,27,0.10)] transition-all duration-300",
+    isCopied ? "border-[#34a853] bg-[#34a853] text-white ring-3 ring-[#34a853]/15 hover:bg-[#2f9a4c]" : "",
     isFailed ? "ring-4 ring-[#d84e43]/15" : "",
-    isCopying ? "scale-[1.01] animate-pulse" : "",
+    isCopying ? "opacity-80" : "",
   ].join(" ");
 
   return (
@@ -1216,7 +1262,6 @@ function ManualPromptButton({
       disabled={disabled}
       onClick={() => void onCreateManualPrompt(kind)}
     >
-      {isCopied ? <span aria-hidden className="absolute inset-0 rounded-md bg-white/20 animate-ping" /> : null}
       <span className="relative">{promptButtonLabel}</span>
     </Button>
   );
@@ -1242,12 +1287,12 @@ function WorkflowButton({
   return (
     <button
       type="button"
-      className="min-w-0 rounded-md border border-[#eadfd2] bg-[#fffdf9] px-3 py-3 text-left transition hover:border-[#efaaa2] hover:bg-[#fff8f5] disabled:cursor-not-allowed disabled:opacity-55"
+      className="min-w-0 rounded-[10px] border border-[#deddd8] bg-[#fafaf8] px-3 py-3 text-left transition-colors duration-200 hover:border-[#b9b7b0] hover:bg-white disabled:cursor-not-allowed disabled:opacity-55"
       disabled={disabled}
       onClick={onClick}
     >
       <span className="mb-2 flex items-center justify-between gap-2">
-        <span className="flex size-6 shrink-0 items-center justify-center rounded bg-[#f6eee4] text-[12px] font-bold text-[#bb6a43]">
+        <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-[#ecebe7] text-[12px] font-bold text-[#5f5f5a]">
           {active ? <Loader2 className="size-3.5 animate-spin" /> : step}
         </span>
         <StatusPill tone={done ? "success" : active ? "warning" : undefined}>{done ? "완료" : active ? "진행" : "대기"}</StatusPill>
@@ -2356,8 +2401,8 @@ function EditorView({
 
   return (
     <div className="grid gap-3">
-      <section className="rounded-md border border-[#e5ddd2] bg-white p-2">
-        <div className="grid grid-cols-2 gap-2 rounded bg-[#faf7f0] p-1">
+      <section className="sticky top-[84px] z-10 rounded-[14px] border border-[#deddd8] bg-white/94 p-2 shadow-[0_8px_24px_rgba(24,24,27,0.06)] backdrop-blur-xl sm:top-[77px]">
+        <div className="grid grid-cols-2 gap-2 rounded-[10px] bg-[#f1f0ec] p-1">
           <button
             type="button"
             className={activeEditorTab === "naver" ? modeButtonActiveClass : modeButtonClass}
@@ -2374,6 +2419,15 @@ function EditorView({
           </button>
         </div>
       </section>
+      <details className="rounded-[14px] border border-[#deddd8] bg-white xl:hidden">
+        <summary className="flex min-h-14 list-none items-center justify-between gap-3 px-4 text-[13px] font-bold text-[#27272a]">
+          모바일 미리보기 열기
+          <ChevronDown aria-hidden className="details-chevron size-4 text-[#6f6f6a]" />
+        </summary>
+        <div className="border-t border-[#ecebe7] p-3">
+          <MobilePreview output={currentOutput} />
+        </div>
+      </details>
       {activeEditorTab === "naver" ? (
         <>
       <TitleSelector
@@ -2799,13 +2853,13 @@ function RightRail({
   onCheck: () => void;
 }) {
   return (
-    <aside className="grid content-start gap-3">
+    <aside className="sticky top-[84px] hidden max-h-[calc(100vh-100px)] content-start gap-3 overflow-y-auto pb-6 [scrollbar-width:thin] xl:grid">
       <MobilePreview output={output} />
       <section className="rounded-md border border-[#e5ddd2] bg-white p-3">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-[14px] font-bold">품질/SEO 체크</h2>
           <StatusPill tone={seoCheck?.warnings.length ? "warning" : "success"}>
-            {seoCheck?.warnings.length ? "확인 필요" : "청량"}
+            {seoCheck?.warnings.length ? "확인 필요" : "정상"}
           </StatusPill>
         </div>
         <div className="grid grid-cols-2 gap-2 text-[12px]">
@@ -2875,9 +2929,12 @@ function RightRail({
           {!output ? <p className="text-[12px] text-[#81766b]">글을 생성하면 제품 2개가 표시됩니다.</p> : null}
         </div>
       </section>
-      <section className="rounded-md border border-[#e5ddd2] bg-white p-3">
-        <h2 className="mb-2 text-[14px] font-bold">복사/내보내기</h2>
-        <div className="grid gap-2">
+      <details className="rounded-[14px] border border-[#deddd8] bg-white">
+        <summary className="flex min-h-12 list-none items-center justify-between gap-3 px-3 text-[14px] font-bold">
+          복사/내보내기
+          <ChevronDown aria-hidden className="details-chevron size-4 text-[#6f6f6a]" />
+        </summary>
+        <div className="grid gap-2 border-t border-[#ecebe7] p-3">
           <CopyToNaverButton label="네이버 전체 본문" text={output?.plain_text_for_naver ?? ""} />
           <CopyToNaverButton label="네이버 제목" text={output?.selected_title ?? ""} />
           <CopyToNaverButton label="네이버 해시태그" text={output?.hashtags.join(" ") ?? ""} />
@@ -2889,10 +2946,13 @@ function RightRail({
           <CopyToNaverButton label="WP 태그" text={output?.wordpress.tags.join(", ") ?? ""} />
           <CopyToNaverButton label="WP 이미지 ALT" text={formatWordPressImageGuide(output?.wordpress)} />
         </div>
-      </section>
-      <section className="rounded-md border border-[#e5ddd2] bg-white p-3">
-        <h2 className="mb-2 text-[14px] font-bold">이미지 가이드</h2>
-        <div className="grid gap-2">
+      </details>
+      <details className="rounded-[14px] border border-[#deddd8] bg-white">
+        <summary className="flex min-h-12 list-none items-center justify-between gap-3 px-3 text-[14px] font-bold">
+          이미지 가이드
+          <ChevronDown aria-hidden className="details-chevron size-4 text-[#6f6f6a]" />
+        </summary>
+        <div className="grid gap-2 border-t border-[#ecebe7] p-3">
           {(output?.image_guide ?? []).map((item, index) => (
             <div key={`${item.position}-${index}`} className="flex items-start justify-between gap-3 border-b border-[#f1e8dd] pb-2 text-[12px] last:border-b-0">
               <span>
@@ -2904,18 +2964,20 @@ function RightRail({
           ))}
           {!output ? <p className="text-[12px] text-[#81766b]">생성 후 이미지 배치 안내가 나옵니다.</p> : null}
         </div>
-      </section>
+      </details>
     </aside>
   );
 }
 
 function MetricCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
-    <section className="rounded-md border border-[#e5ddd2] bg-white p-4">
-      <div className="mb-3 flex size-8 items-center justify-center rounded-md bg-[#f6eee4] text-[#bb6a43]">{icon}</div>
-      <div className="text-[24px] font-bold text-[#302a24]">{value}</div>
-      <div className="text-[12px] text-[#81766b]">{label}</div>
-    </section>
+    <div className="flex items-center gap-4 border-b border-[#e7e6e1] p-4 last:border-b-0 sm:border-b-0 sm:p-5">
+      <div className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-[#f1f0ec] text-[#b4233f]">{icon}</div>
+      <div>
+        <div className="text-[22px] font-black tracking-[-0.03em] text-[#18181b]">{value}</div>
+        <div className="text-[11px] font-medium text-[#6f6f6a]">{label}</div>
+      </div>
+    </div>
   );
 }
 
@@ -2930,24 +2992,3 @@ function RailStat({ icon, label, value }: { icon: React.ReactNode; label: string
     </div>
   );
 }
-
-const sampleDraftRows = [
-  {
-    id: "sample-1",
-    title: "퇴사 답례품, 문구까지 담고 싶다면 이런 쿠키가 좋아요",
-    main_keyword: "퇴사 답례품",
-    post_type: "답례품 판매형",
-  },
-  {
-    id: "sample-2",
-    title: "어린이집 생일 답례품으로 귀엽게 나누기 좋은 쿠키",
-    main_keyword: "어린이집 답례품",
-    post_type: "시즌 선물형",
-  },
-  {
-    id: "sample-3",
-    title: "스승의 날 선물, 부담 없이 마음 전하는 방법",
-    main_keyword: "스승의 날 선물",
-    post_type: "검색 유입 정보형",
-  },
-];

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Heart, Menu, MessageCircle, Search, Share2 } from "lucide-react";
+import { Cookie, Heart, Menu, MessageCircle, Search, Share2 } from "lucide-react";
 import type { BlogDraftOutput } from "@/types/blog";
 
 export function MobilePreview({ output }: { output: BlogDraftOutput | null }) {
@@ -14,13 +14,13 @@ export function MobilePreview({ output }: { output: BlogDraftOutput | null }) {
   const isWordPress = previewMode === "wordpress" && wordpress;
 
   return (
-    <div className="rounded-md border border-[#e8e0d5] bg-white p-4 shadow-[0_12px_30px_rgba(76,56,32,0.06)]">
+    <div className="rounded-[16px] border border-[#deddd8] bg-white p-4 shadow-[0_12px_32px_rgba(24,24,27,0.06)]">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-[14px] font-bold text-[#38312b]">모바일 미리보기</h2>
           <p className="mt-1 text-[11px] text-[#8a8177]">네이버와 워드프레스 버전을 각각 확인하세요.</p>
         </div>
-        <div className="grid grid-cols-2 rounded-md border border-[#ded8ce] bg-[#faf7f0] p-1">
+        <div className="grid grid-cols-2 rounded-[10px] border border-[#deddd8] bg-[#f1f0ec] p-1">
           <button
             type="button"
             className={previewMode === "naver" ? previewActiveClass : previewButtonClass}
@@ -37,7 +37,7 @@ export function MobilePreview({ output }: { output: BlogDraftOutput | null }) {
           </button>
         </div>
       </div>
-      <div className="mx-auto w-full max-w-[300px] rounded-[26px] border-[5px] border-[#3c3935] bg-white p-3 shadow-[0_18px_30px_rgba(53,42,31,0.18)]">
+      <div className="mx-auto w-full max-w-[300px] rounded-[28px] border-[5px] border-[#28282b] bg-white p-3 shadow-[0_20px_36px_rgba(24,24,27,0.18)]">
         <div className="mb-4 flex items-center justify-between border-b border-[#eee6dc] pb-3">
           <span className={isWordPress ? "text-[15px] font-extrabold text-[#21759b]" : "text-[15px] font-extrabold text-[#29b15f]"}>
             {isWordPress ? "WordPress" : "blog"}
@@ -52,8 +52,8 @@ export function MobilePreview({ output }: { output: BlogDraftOutput | null }) {
             {isWordPress ? wordpress.selected_title : output?.selected_title ?? "퇴사 답례품, 문구까지 담고 싶다면 이런 쿠키가 좋아요"}
           </h3>
           <div className="mb-3 flex items-center gap-2 text-[11px] text-[#7c7368]">
-            <span className={isWordPress ? "grid size-5 place-items-center rounded-full bg-[#d9ecf4]" : "grid size-5 place-items-center rounded-full bg-[#f5d3a4]"}>
-              {isWordPress ? "W" : "🍪"}
+            <span className={isWordPress ? "grid size-5 place-items-center rounded-full bg-[#d9ecf4]" : "grid size-5 place-items-center rounded-full bg-[#18181b] text-white"}>
+              {isWordPress ? "W" : <Cookie className="size-3" />}
             </span>
             {isWordPress ? "nothingmatters.com · SEO 초안" : "nothingmatters · 방금 전"}
           </div>
