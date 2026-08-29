@@ -88,13 +88,11 @@ describe("product selection scoring", () => {
     expect(() => blogDraftOutputSchema.parse(output)).not.toThrow();
     expect(output.title_candidates).toHaveLength(5);
     expect(output.title_candidates.every((title) => title.includes(draftInput.main_keyword))).toBe(true);
-    expect(output.title_candidates.every((title) => title.endsWith("?"))).toBe(true);
-    expect(new Set(output.title_candidates.map((title) => title.match(/[^, ]+\?$/)?.[0] ?? title)).size).toBeGreaterThan(2);
+    expect(output.title_candidates.filter((title) => title.endsWith("?")).length).toBeLessThanOrEqual(1);
+    expect(new Set(output.title_candidates).size).toBe(5);
     expect(output.wordpress.title_candidates).toHaveLength(5);
     expect(output.wordpress.selected_title).not.toBe(output.selected_title);
     expect(output.wordpress.title_candidates.every((title) => title.includes(draftInput.main_keyword))).toBe(true);
-    expect(output.wordpress.title_candidates.every((title) => title.endsWith("?"))).toBe(true);
-    expect(output.wordpress.selected_title.endsWith("?")).toBe(true);
     expect(output.wordpress.sections.map((section) => section.heading)).not.toEqual(output.sections.map((section) => section.heading));
     expect(output.wordpress.sections.map((section) => section.heading)).toEqual(
       expect.arrayContaining([expect.stringMatching(/^1️⃣ /), expect.stringMatching(/^7️⃣ /)]),

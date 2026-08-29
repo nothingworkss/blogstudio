@@ -44,6 +44,15 @@ import { formatImageGuide, formatMarkdownForWordPress, formatPlainTextForNaver, 
 import { getSeoCheck } from "@/lib/utils/formatBlog";
 import { applySeoSectionHeadings, buildSeoSectionHeadings, buildWordPressSectionHeadings } from "@/lib/utils/seoHeadings";
 import { splitByComma } from "@/lib/utils/strings";
+import {
+  applyLockedNaverTitle,
+  buildLocalTitleCandidates,
+  buildLockedNaverTitleInstructions,
+  buildManualTitlePrompt,
+  buildTitleContextFingerprint,
+  getTitleWarnings,
+  parseTitleCandidates,
+} from "@/lib/title-workflow";
 import { blogDraftOutputSchema } from "@/lib/validations/blog.schema";
 import { CopyToNaverButton } from "./CopyToNaverButton";
 import { FaqEditor } from "./FaqEditor";
@@ -60,10 +69,24 @@ type WorkflowStep = "observe" | "select" | "generate" | "check";
 type ManualPromptKind = "naver" | "wordpress";
 type ManualCopyState = "idle" | "copying" | "copied" | "failed";
 type ManualCopyStateMap = Record<ManualPromptKind, ManualCopyState>;
+type ManualTitleWorkflow = {
+  contextKey: string;
+  sourceText: string;
+  candidates: string[];
+  selectedTitle: string;
+  copyState: ManualCopyState;
+};
 
 const modeButtonClass = "h-9 rounded-[8px] px-3 text-[12px] font-bold text-[#5f5f5a] transition-colors hover:bg-white hover:text-[#18181b]";
 const modeButtonActiveClass = "h-9 rounded-[8px] bg-white px-3 text-[12px] font-bold text-[#b4233f] shadow-[0_1px_5px_rgba(24,24,27,0.08)]";
 const idleManualCopyState: ManualCopyStateMap = { naver: "idle", wordpress: "idle" };
+const idleManualTitleWorkflow: ManualTitleWorkflow = {
+  contextKey: "",
+  sourceText: "",
+  candidates: [],
+  selectedTitle: "",
+  copyState: "idle",
+};
 
 const defaultInput: BlogDraftInput = {
   topic: "퇴사 답례품",
@@ -115,18 +138,37 @@ export function BlogStudioApp({
   const [isGenerating, setGenerating] = useState(false);
   const [notice, setNotice] = useState("");
   const [brandDraft, setBrandDraft] = useState(brand);
-  const [generationMode, setGenerationMode] = useState<GenerationMode>("auto");
+  const [generationMode, setGenerationMode] = useState<GenerationMode>("semi");
   const [observations, setObservations] = useState<ImageObservation[]>(initialDrafts[0]?.image_observations ?? []);
   const [selectedProducts, setSelectedProducts] = useState<ProductRecommendation[]>(initialDrafts[0]?.selected_products ?? []);
   const [qualityCheck, setQualityCheck] = useState<DraftQualityCheck | null>(null);
   const [runningStep, setRunningStep] = useState<WorkflowStep | null>(null);
   const [manualJson, setManualJson] = useState("");
   const [manualCopyState, setManualCopyState] = useState<ManualCopyStateMap>(idleManualCopyState);
+  const [manualTitleWorkflow, setManualTitleWorkflow] = useState<ManualTitleWorkflow>(idleManualTitleWorkflow);
 
   const seoCheck = useMemo(() => (output ? getSeoCheck(output, input.main_keyword) : null), [output, input.main_keyword]);
+  const titleContextKey = useMemo(
+    () => buildTitleContextFingerprint({ input, selectedProducts, observations }),
+    [input, observations, selectedProducts],
+  );
+  const currentTitleWorkflow = manualTitleWorkflow.contextKey === titleContextKey
+    ? manualTitleWorkflow
+    : { ...idleManualTitleWorkflow, contextKey: titleContextKey };
+  const titleWarnings = useMemo(
+    () => getTitleWarnings(currentTitleWorkflow.selectedTitle, input.main_keyword),
+    [currentTitleWorkflow.selectedTitle, input.main_keyword],
+  );
 
   function navigate(next: StudioView) {
     setView(next);
+  }
+
+  function updateDraftInput(next: BlogDraftInput) {
+    const nextTitleContextKey = buildTitleContextFingerprint({ input: next, selectedProducts, observations });
+    if (nextTitleContextKey !== titleContextKey) setManualTitleWorkflow(idleManualTitleWorkflow);
+    setInput(next);
+    setManualCopyState(idleManualCopyState);
   }
 
   function updateOutput(next: BlogDraftOutput) {
@@ -166,6 +208,7 @@ export function BlogStudioApp({
     setObservations(draft.image_observations);
     setSelectedProducts(draft.selected_products);
     setQualityCheck(null);
+    setManualTitleWorkflow(idleManualTitleWorkflow);
     setView("editor");
   }
 
@@ -174,6 +217,8 @@ export function BlogStudioApp({
     try {
       if (!input.images.length) {
         setObservations([]);
+        setManualCopyState(idleManualCopyState);
+        setManualTitleWorkflow(idleManualTitleWorkflow);
         setNotice("사진 없이 텍스트 기준으로 다음 단계에 진행할 수 있습니다.");
         return [];
       }
@@ -190,6 +235,8 @@ export function BlogStudioApp({
         : [];
 
       setObservations(nextObservations);
+      setManualCopyState(idleManualCopyState);
+      setManualTitleWorkflow(idleManualTitleWorkflow);
       setNotice(`사진 관찰 완료: ${nextObservations.length}개 결과를 반영했습니다.`);
       return nextObservations as ImageObservation[];
     } catch (error) {
@@ -213,6 +260,8 @@ export function BlogStudioApp({
       if (!response.ok) throw new Error(data.error ?? "제품 추천에 실패했습니다.");
 
       setSelectedProducts(data.selected_products);
+      setManualCopyState(idleManualCopyState);
+      setManualTitleWorkflow(idleManualTitleWorkflow);
       setInput((prev) => ({
         ...prev,
         preferred_products: data.selected_products.map((product: ProductRecommendation) => product.product_name),
@@ -312,10 +361,10 @@ export function BlogStudioApp({
     const names = [selectedProducts[0]?.product_name ?? "", selectedProducts[1]?.product_name ?? ""];
     names[slot] = productName;
     const uniqueNames = names.filter(Boolean).filter((name, index, values) => values.indexOf(name) === index).slice(0, 2);
-    const nextProducts = uniqueNames.map((name, index) => {
+    const nextProducts = uniqueNames.map((name) => {
       const product = products.find((item) => item.name === name);
       return product
-        ? recommendationFromProduct(product, input, index)
+        ? recommendationFromProduct(product, input)
         : ensureRecommendationEditorialDefaults({
             product_name: name,
             reason: `${input.topic} 상황에 맞춰 직접 선택한 제품입니다.`,
@@ -329,12 +378,14 @@ export function BlogStudioApp({
     setInput((prev) => ({ ...prev, preferred_products: uniqueNames }));
     setQualityCheck(null);
     setManualCopyState(idleManualCopyState);
+    setManualTitleWorkflow(idleManualTitleWorkflow);
   }
 
   function clearProductSlots() {
     setSelectedProducts([]);
     setInput((prev) => ({ ...prev, preferred_products: [], product_detail_answers: {} }));
     setManualCopyState(idleManualCopyState);
+    setManualTitleWorkflow(idleManualTitleWorkflow);
   }
 
   function updateProductDetailAnswer(productName: string, field: string, value: string) {
@@ -352,15 +403,90 @@ export function BlogStudioApp({
     setManualCopyState(idleManualCopyState);
   }
 
+  function updateCurrentTitleWorkflow(
+    update: (current: ManualTitleWorkflow) => ManualTitleWorkflow,
+  ) {
+    setManualTitleWorkflow((previous) => {
+      const current = previous.contextKey === titleContextKey
+        ? previous
+        : { ...idleManualTitleWorkflow, contextKey: titleContextKey };
+      return update(current);
+    });
+  }
+
+  async function createManualTitlePrompt() {
+    if (selectedProducts.length !== 2) {
+      setNotice("제목 프롬프트를 만들려면 제품 2가지를 먼저 선택해 주세요.");
+      updateCurrentTitleWorkflow((current) => ({ ...current, copyState: "failed" }));
+      return;
+    }
+
+    const copiedContextKey = titleContextKey;
+    updateCurrentTitleWorkflow((current) => ({ ...current, copyState: "copying" }));
+    const prompt = buildManualTitlePrompt({ input, selectedProducts });
+    const copied = await copyTextToClipboard(prompt);
+
+    updateCurrentTitleWorkflow((current) => ({ ...current, copyState: copied ? "copied" : "failed" }));
+    setNotice(
+      copied
+        ? "제목 전용 프롬프트를 복사했습니다. OpenAI에 붙여넣고 결과를 다시 가져오세요."
+        : "제목 프롬프트는 만들었지만 브라우저 복사 권한이 막혔습니다.",
+    );
+    window.setTimeout(() => {
+      setManualTitleWorkflow((current) =>
+        current.contextKey === copiedContextKey ? { ...current, copyState: "idle" } : current,
+      );
+    }, 3200);
+  }
+
+  function applyManualTitleText(value: string) {
+    const candidates = parseTitleCandidates(value);
+    updateCurrentTitleWorkflow((current) => ({
+      ...current,
+      sourceText: value,
+      candidates,
+      selectedTitle: candidates.includes(current.selectedTitle) ? current.selectedTitle : "",
+    }));
+    setManualCopyState(idleManualCopyState);
+    setNotice(
+      candidates.length
+        ? `제목 후보 ${candidates.length}개를 불러왔습니다. 하나를 고르거나 직접 수정해 주세요.`
+        : "제목 후보를 찾지 못했습니다. 번호 목록이나 JSON 전체를 붙여넣어 주세요.",
+    );
+  }
+
+  function updateManualTitleSource(value: string) {
+    updateCurrentTitleWorkflow((current) => ({ ...current, sourceText: value }));
+  }
+
+  function updateSelectedManualTitle(value: string) {
+    updateCurrentTitleWorkflow((current) => ({ ...current, selectedTitle: value }));
+    setManualCopyState(idleManualCopyState);
+  }
+
   async function createManualPrompt(kind: ManualPromptKind) {
     if (selectedProducts.length !== 2) {
       setNotice("반자동 프롬프트를 만들려면 제품 2가지를 먼저 선택해 주세요.");
       setManualCopyState((prev) => ({ ...prev, [kind]: "failed" }));
       return;
     }
+    if (kind === "naver" && !currentTitleWorkflow.selectedTitle.trim()) {
+      setNotice("네이버 본문 프롬프트를 만들기 전에 제목을 먼저 골라 주세요.");
+      setManualCopyState((prev) => ({ ...prev, naver: "failed" }));
+      return;
+    }
 
     setManualCopyState({ ...idleManualCopyState, [kind]: "copying" });
-    const prompt = buildManualPrompt({ kind, input, brand: brandDraft, products, selectedProducts, observations });
+    const prompt = buildManualPrompt({
+      kind,
+      input,
+      brand: brandDraft,
+      products,
+      selectedProducts,
+      observations,
+      selectedTitle: currentTitleWorkflow.selectedTitle,
+      titleCandidates: currentTitleWorkflow.candidates,
+    });
 
     if (await copyTextToClipboard(prompt)) {
       setManualCopyState({ ...idleManualCopyState, [kind]: "copied" });
@@ -381,6 +507,7 @@ export function BlogStudioApp({
     setOutput(null);
     setManualJson("");
     setManualCopyState(idleManualCopyState);
+    setManualTitleWorkflow(idleManualTitleWorkflow);
     setNotice("새 글 입력을 비웠습니다. 처음부터 다시 시작할 수 있습니다.");
     setView("new");
   }
@@ -396,8 +523,24 @@ export function BlogStudioApp({
 
       const parsedJson = parseJsonFromText(jsonText);
       const manualSelectedProducts = resolveManualSelectedProducts(parsedJson, input, selectedProducts, products, output);
-      const normalized = normalizeManualPatch(parsedJson, input, manualSelectedProducts, output);
-      const parsedOutput = blogDraftOutputSchema.parse(normalized);
+      const titleLockedJson = currentTitleWorkflow.selectedTitle.trim()
+        ? applyLockedNaverTitle(parsedJson, {
+            selectedTitle: currentTitleWorkflow.selectedTitle,
+            titleCandidates: currentTitleWorkflow.candidates,
+            input,
+            selectedProducts: manualSelectedProducts,
+          })
+        : parsedJson;
+      const normalized = normalizeManualPatch(titleLockedJson, input, manualSelectedProducts, output);
+      const titleLockedOutput = currentTitleWorkflow.selectedTitle.trim()
+        ? applyLockedNaverTitle(normalized, {
+            selectedTitle: currentTitleWorkflow.selectedTitle,
+            titleCandidates: currentTitleWorkflow.candidates,
+            input,
+            selectedProducts: manualSelectedProducts,
+          })
+        : normalized;
+      const parsedOutput = blogDraftOutputSchema.parse(titleLockedOutput);
       const response = await fetch("/api/drafts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -528,13 +671,22 @@ export function BlogStudioApp({
                 runningStep={runningStep}
                 manualJson={manualJson}
                 manualCopyState={manualCopyState}
-                onInput={setInput}
+                manualTitleText={currentTitleWorkflow.sourceText}
+                titleCandidates={currentTitleWorkflow.candidates}
+                selectedTitle={currentTitleWorkflow.selectedTitle}
+                titleWarnings={titleWarnings}
+                manualTitleCopyState={currentTitleWorkflow.copyState}
+                onInput={updateDraftInput}
                 onMode={setGenerationMode}
                 onObserve={observeImagesStep}
                 onSelectProducts={() => selectProductsStep()}
                 onProductSlot={setProductSlot}
                 onClearProducts={clearProductSlots}
                 onProductDetailAnswer={updateProductDetailAnswer}
+                onCreateManualTitlePrompt={() => void createManualTitlePrompt()}
+                onManualTitleText={updateManualTitleSource}
+                onApplyManualTitleText={applyManualTitleText}
+                onSelectManualTitle={updateSelectedManualTitle}
                 onCreateManualPrompt={createManualPrompt}
                 onManualJson={setManualJson}
                 onApplyManualJson={() => void applyManualJson()}
@@ -691,6 +843,11 @@ function NewPostView({
   runningStep,
   manualJson,
   manualCopyState,
+  manualTitleText,
+  titleCandidates,
+  selectedTitle,
+  titleWarnings,
+  manualTitleCopyState,
   onInput,
   onMode,
   onObserve,
@@ -698,6 +855,10 @@ function NewPostView({
   onProductSlot,
   onClearProducts,
   onProductDetailAnswer,
+  onCreateManualTitlePrompt,
+  onManualTitleText,
+  onApplyManualTitleText,
+  onSelectManualTitle,
   onCreateManualPrompt,
   onManualJson,
   onApplyManualJson,
@@ -716,6 +877,11 @@ function NewPostView({
   runningStep: WorkflowStep | null;
   manualJson: string;
   manualCopyState: ManualCopyStateMap;
+  manualTitleText: string;
+  titleCandidates: string[];
+  selectedTitle: string;
+  titleWarnings: string[];
+  manualTitleCopyState: ManualCopyState;
   onInput: (input: BlogDraftInput) => void;
   onMode: (mode: GenerationMode) => void;
   onObserve: () => void;
@@ -723,6 +889,10 @@ function NewPostView({
   onProductSlot: (slot: 0 | 1, productName: string) => void;
   onClearProducts: () => void;
   onProductDetailAnswer: (productName: string, field: string, value: string) => void;
+  onCreateManualTitlePrompt: () => void;
+  onManualTitleText: (value: string) => void;
+  onApplyManualTitleText: (value: string) => void;
+  onSelectManualTitle: (value: string) => void;
   onCreateManualPrompt: (kind: ManualPromptKind) => void | Promise<void>;
   onManualJson: (value: string) => void;
   onApplyManualJson: () => void;
@@ -749,15 +919,17 @@ function NewPostView({
         <div className="flex min-w-0 flex-wrap items-center justify-between gap-4">
           <div className="min-w-0 max-w-2xl">
             <h3 className="text-[14px] font-bold text-[#27272a]">생성 방식</h3>
-            <p className="mt-1 text-[12px] leading-5 text-[#6f6f6a]">자동은 한 번에 완성하고, 반자동은 제품과 프롬프트를 단계별로 확인합니다.</p>
+            <p className="mt-1 text-[12px] leading-5 text-[#6f6f6a]">
+              {mode === "semi" ? "제목을 직접 고른 뒤 본문 프롬프트를 만듭니다." : "빠른 자동은 제목까지 시스템이 고르고 한 번에 생성합니다."}
+            </p>
           </div>
           <div className="grid shrink-0 grid-cols-2 rounded-[10px] border border-[#deddd8] bg-[#f1f0ec] p-1">
-            <button type="button" className={mode === "auto" ? modeButtonActiveClass : modeButtonClass} onClick={() => onMode("auto")}>자동</button>
-            <button type="button" className={mode === "semi" ? modeButtonActiveClass : modeButtonClass} onClick={() => onMode("semi")}>반자동</button>
+            <button type="button" className={mode === "semi" ? modeButtonActiveClass : modeButtonClass} onClick={() => onMode("semi")}>직접 선택</button>
+            <button type="button" className={mode === "auto" ? modeButtonActiveClass : modeButtonClass} onClick={() => onMode("auto")}>빠른 자동</button>
           </div>
         </div>
         {mode === "semi" ? (
-          <div className="mt-4 grid gap-2 md:grid-cols-4">
+          <div className="mt-4 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:thin] sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 xl:grid-cols-5">
             <WorkflowButton
               step="1"
               label={images.length ? "사진 관찰" : "사진 없음"}
@@ -778,15 +950,24 @@ function NewPostView({
             />
             <WorkflowButton
               step="3"
-              label="본문 생성"
-              detail="제목/본문/FAQ/태그"
-              active={runningStep === "generate" || isGenerating}
-              done={false}
+              label="제목 선택"
+              detail={selectedTitle || (titleCandidates.length ? `${titleCandidates.length}개 후보` : "OpenAI 결과 붙여넣기")}
+              active={manualTitleCopyState === "copying"}
+              done={Boolean(selectedTitle.trim())}
               disabled={isBusy || selectedProducts.length !== 2}
-              onClick={onGenerate}
+              onClick={() => document.getElementById("title-workflow")?.scrollIntoView({ behavior: "smooth", block: "center" })}
             />
             <WorkflowButton
               step="4"
+              label="본문 프롬프트"
+              detail="선택 제목을 고정해 복사"
+              active={manualCopyState.naver === "copying"}
+              done={manualCopyState.naver === "copied"}
+              disabled={isBusy || !selectedTitle.trim()}
+              onClick={() => void onCreateManualPrompt("naver")}
+            />
+            <WorkflowButton
+              step="5"
               label="최종 검수"
               detail={qualityCheck ? `${qualityCheck.warnings.length}개 경고` : "생성 후 실행"}
               active={runningStep === "check"}
@@ -846,6 +1027,21 @@ function NewPostView({
         onClear={onClearProducts}
       />
 
+      {mode === "semi" ? (
+        <ManualTitlePanel
+          canCreatePrompt={selectedProducts.length === 2}
+          sourceText={manualTitleText}
+          candidates={titleCandidates}
+          selectedTitle={selectedTitle}
+          warnings={titleWarnings}
+          copyState={manualTitleCopyState}
+          onCreatePrompt={onCreateManualTitlePrompt}
+          onSourceText={onManualTitleText}
+          onApplySource={onApplyManualTitleText}
+          onSelectTitle={onSelectManualTitle}
+        />
+      ) : null}
+
       <details className="group rounded-[16px] border border-[#deddd8] bg-white">
         <summary className="flex min-h-16 list-none items-center justify-between gap-4 px-4 py-3 sm:px-5">
           <span>
@@ -879,7 +1075,8 @@ function NewPostView({
 
       {mode === "semi" ? (
         <SemiManualPanel
-          canCreatePrompt={selectedProducts.length === 2}
+          canCreateNaverPrompt={selectedProducts.length === 2 && Boolean(selectedTitle.trim())}
+          canCreateWordPressPrompt={selectedProducts.length === 2}
           manualJson={manualJson}
           copyState={manualCopyState}
           onCreateManualPrompt={onCreateManualPrompt}
@@ -890,18 +1087,18 @@ function NewPostView({
 
       <section className="sticky bottom-3 z-10 flex flex-col gap-3 rounded-[16px] border border-[#d6d5cf] bg-white/94 p-3 shadow-[0_16px_40px_rgba(24,24,27,0.14)] backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between sm:p-4">
         <div className="min-w-0">
-          <strong className="block text-[13px] text-[#27272a]">{mode === "semi" ? `선택 제품 ${selectedProducts.length}/2` : "자동 생성 준비"}</strong>
-          <span className="mt-0.5 block truncate text-[11px] text-[#6f6f6a]">{mode === "semi" ? "제품 2개를 선택하면 본문 생성을 시작할 수 있습니다." : "사진 관찰부터 최종 검수까지 한 번에 진행합니다."}</span>
+          <strong className="block text-[13px] text-[#27272a]">{mode === "semi" ? (selectedTitle.trim() ? "제목 선택 완료" : "제목을 먼저 선택해 주세요") : "빠른 자동 생성"}</strong>
+          <span className="mt-0.5 block truncate text-[11px] text-[#6f6f6a]">{mode === "semi" ? (selectedTitle || "선택한 제목을 한 글자도 바꾸지 않고 본문 프롬프트에 고정합니다.") : "제목 자동 선택부터 최종 검수까지 한 번에 진행합니다."}</span>
         </div>
         <Button
           type="button"
           variant="primary"
           className="h-11 w-full shrink-0 px-5 sm:w-auto"
-          icon={isGenerating ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-          onClick={onGenerate}
-          disabled={isBusy || (mode === "semi" && selectedProducts.length !== 2)}
+          icon={mode === "semi" ? <WandSparkles className="size-4" /> : isGenerating ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+          onClick={() => mode === "semi" ? void onCreateManualPrompt("naver") : onGenerate()}
+          disabled={isBusy || (mode === "semi" && !selectedTitle.trim())}
         >
-          {mode === "semi" ? "선택값으로 본문 생성" : "자동으로 끝까지 생성"}
+          {mode === "semi" ? "선택 제목으로 본문 프롬프트 복사" : "빠른 자동으로 끝까지 생성"}
         </Button>
       </section>
     </div>
@@ -1113,15 +1310,171 @@ function ProductDetailQuestionCard({
   );
 }
 
-function SemiManualPanel({
+function ManualTitlePanel({
   canCreatePrompt,
+  sourceText,
+  candidates,
+  selectedTitle,
+  warnings,
+  copyState,
+  onCreatePrompt,
+  onSourceText,
+  onApplySource,
+  onSelectTitle,
+}: {
+  canCreatePrompt: boolean;
+  sourceText: string;
+  candidates: string[];
+  selectedTitle: string;
+  warnings: string[];
+  copyState: ManualCopyState;
+  onCreatePrompt: () => void;
+  onSourceText: (value: string) => void;
+  onApplySource: (value: string) => void;
+  onSelectTitle: (value: string) => void;
+}) {
+  const [showSource, setShowSource] = useState(false);
+  const titleTypes = ["키워드 직결", "구체적 상황", "선택 기준", "제품 비교", "부드러운 호기심"];
+  const isCopying = copyState === "copying";
+  const isCopied = copyState === "copied";
+
+  return (
+    <section id="title-workflow" className="scroll-mt-24 overflow-hidden rounded-[16px] border border-[#d7b2ba] bg-white shadow-[0_10px_32px_rgba(180,35,63,0.06)]">
+      <div className="flex flex-col items-start justify-between gap-4 border-b border-[#eee2e5] bg-[#fff8f9] p-4 sm:flex-row sm:items-center sm:p-5">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="grid size-7 place-items-center rounded-full bg-[#b4233f] text-[12px] font-bold text-white">3</span>
+            <h3 className="text-[16px] font-bold text-[#27272a]">제목을 먼저 고르세요</h3>
+          </div>
+          <p className="mt-2 text-[12px] leading-5 text-[#6f6f6a]">OpenAI에서 후보만 받아온 뒤, 선택하거나 직접 고친 제목을 본문에 고정합니다.</p>
+        </div>
+        <Button
+          type="button"
+          variant={isCopied ? "secondary" : "primary"}
+          className="w-full shrink-0 sm:w-auto"
+          icon={isCopying ? <Loader2 className="size-4 animate-spin" /> : isCopied ? <CheckCircle2 className="size-4" /> : <WandSparkles className="size-4" />}
+          disabled={!canCreatePrompt || isCopying}
+          onClick={onCreatePrompt}
+        >
+          {isCopying ? "복사 중" : isCopied ? "제목 프롬프트 복사 완료" : "OpenAI 제목 프롬프트 복사"}
+        </Button>
+      </div>
+
+      <div className="grid gap-5 p-4 sm:p-5">
+        {!canCreatePrompt ? (
+          <p className="rounded-[10px] bg-[#fff8df] px-3 py-2 text-[12px] font-medium text-[#755700]">제품 2개를 먼저 선택하면 제목 프롬프트를 만들 수 있습니다.</p>
+        ) : null}
+
+        {!candidates.length || showSource ? (
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_124px]">
+            <Field label="OpenAI 제목 결과 붙여넣기" hint="번호 목록 또는 JSON">
+              <Textarea
+                value={sourceText}
+                placeholder={"1. 첫 번째 제목\n2. 두 번째 제목\n3. 세 번째 제목"}
+                className="min-h-24 font-mono text-[12px] leading-5"
+                onChange={(event) => onSourceText(event.target.value)}
+                onPaste={(event) => {
+                  const target = event.currentTarget;
+                  const pastedText = event.clipboardData.getData("text");
+                  window.setTimeout(() => onApplySource(target.value || pastedText), 0);
+                }}
+              />
+            </Field>
+            <Button
+              type="button"
+              variant="secondary"
+              className="h-11 sm:self-end"
+              disabled={!sourceText.trim()}
+              onClick={() => {
+                onApplySource(sourceText);
+                setShowSource(false);
+              }}
+            >
+              후보 불러오기
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-3 rounded-[10px] bg-[#f7f6f3] px-3 py-2">
+            <span className="text-[12px] font-medium text-[#5f5f5a]">OpenAI 제목 후보 {candidates.length}개를 불러왔습니다.</span>
+            <Button type="button" variant="ghost" className="h-8 shrink-0 px-2 text-[11px]" onClick={() => setShowSource(true)}>다시 붙여넣기</Button>
+          </div>
+        )}
+
+        {candidates.length ? (
+          <div className="grid gap-2">
+            <div className="flex items-center justify-between gap-3">
+              <h4 className="text-[13px] font-bold text-[#27272a]">제목 후보</h4>
+              <span className="text-[11px] text-[#6f6f6a]">{candidates.length}개 · 하나를 선택하세요</span>
+            </div>
+            <div className="divide-y divide-[#ecebe7] border-y border-[#ecebe7]">
+              {candidates.map((title, index) => {
+                const selected = selectedTitle === title;
+                return (
+                  <button
+                    key={`${title}-${index}`}
+                    type="button"
+                    aria-pressed={selected}
+                    className={[
+                      "flex w-full items-start gap-3 px-2 py-3 text-left transition-colors sm:px-3",
+                      selected ? "bg-[#fff1f3]" : "hover:bg-[#fafaf8]",
+                    ].join(" ")}
+                    onClick={() => onSelectTitle(title)}
+                  >
+                    <span className={[
+                      "mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-[11px] font-bold",
+                      selected ? "bg-[#b4233f] text-white" : "bg-[#ecebe7] text-[#62625d]",
+                    ].join(" ")}>{index + 1}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[11px] font-semibold text-[#8a4b5a]">{titleTypes[index] ?? "제목 후보"}</span>
+                      <strong className="mt-1 block text-[13px] leading-5 text-[#27272a]">{title}</strong>
+                    </span>
+                    {selected ? <CheckCircle2 className="mt-1 size-4 shrink-0 text-[#b4233f]" /> : null}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
+        <Field label="최종 네이버 제목" hint={`${selectedTitle.length}자 · 직접 수정 가능`}>
+          <Input
+            value={selectedTitle}
+            placeholder="후보를 선택하거나 제목을 직접 입력해 주세요."
+            onChange={(event) => onSelectTitle(event.target.value)}
+          />
+        </Field>
+
+        <div aria-live="polite" className="min-h-6">
+          {selectedTitle.trim() ? (
+            warnings.length ? (
+              <div className="grid gap-1.5">
+                {warnings.map((warning) => (
+                  <p key={warning} className="rounded-[9px] bg-[#fff8df] px-3 py-2 text-[12px] leading-5 text-[#755700]">{warning}</p>
+                ))}
+              </div>
+            ) : (
+              <p className="rounded-[9px] bg-[#edf8f0] px-3 py-2 text-[12px] font-medium text-[#236b44]">이 제목을 네이버 본문에 그대로 고정합니다.</p>
+            )
+          ) : (
+            <p className="text-[12px] text-[#6f6f6a]">제목을 선택해야 네이버 본문 프롬프트를 만들 수 있습니다.</p>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function SemiManualPanel({
+  canCreateNaverPrompt,
+  canCreateWordPressPrompt,
   manualJson,
   copyState,
   onCreateManualPrompt,
   onManualJson,
   onApplyManualJson,
 }: {
-  canCreatePrompt: boolean;
+  canCreateNaverPrompt: boolean;
+  canCreateWordPressPrompt: boolean;
   manualJson: string;
   copyState: ManualCopyStateMap;
   onCreateManualPrompt: (kind: ManualPromptKind) => void | Promise<void>;
@@ -1135,23 +1488,22 @@ function SemiManualPanel({
   const hasManualJson = manualJson.trim().length > 0;
 
   return (
-    <section className="w-full min-w-0 max-w-full overflow-hidden rounded-[16px] border border-[#deddd8] bg-white p-4 sm:p-5">
-      <div className="mb-3 flex min-w-0 flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0 max-w-full">
-          <h3 className="text-[14px] font-bold text-[#362f28]">반자동 GPT 작업</h3>
-          <p className="mt-1 text-[12px] leading-5 text-[#7b7166]">
-            프롬프트는 화면에 펼치지 않고 생성 즉시 복사합니다. GPT 결과 JSON만 아래에 붙여넣으면 됩니다.
-          </p>
-        </div>
-      </div>
-      <div className="grid gap-3">
+    <details className="w-full min-w-0 max-w-full overflow-hidden rounded-[16px] border border-[#deddd8] bg-white">
+      <summary className="flex min-h-16 list-none items-center justify-between gap-4 px-4 py-3 sm:px-5">
+        <span className="min-w-0">
+          <strong className="block text-[14px] text-[#27272a]">본문 작성·반영</strong>
+          <span className="mt-1 block truncate text-[12px] text-[#6f6f6a]">프롬프트 복사 · OpenAI JSON 붙여넣기</span>
+        </span>
+        <ChevronDown aria-hidden className="details-chevron size-4 shrink-0 text-[#6f6f6a]" />
+      </summary>
+      <div className="grid gap-3 border-t border-[#ecebe7] p-4 sm:p-5">
         <div className="grid gap-2 sm:grid-cols-2">
           {(["naver", "wordpress"] as const).map((kind) => (
             <ManualPromptButton
               key={kind}
               kind={kind}
               state={copyState[kind]}
-              disabled={!canCreatePrompt || isCopying}
+              disabled={!(kind === "naver" ? canCreateNaverPrompt : canCreateWordPressPrompt) || isCopying}
               onCreateManualPrompt={onCreateManualPrompt}
             />
           ))}
@@ -1166,12 +1518,12 @@ function SemiManualPanel({
                 isFailed ? "bg-[#fff4f1] text-[#d84e43]" : "",
               ].join(" ")}
             >
-              {isCopied ? "클립보드에 복사됐어요. 이제 GPT 입력창에 붙여넣으면 됩니다." : isCopying ? "프롬프트를 만들고 클립보드에 복사하는 중입니다." : "브라우저 복사 권한을 확인한 뒤 다시 눌러 주세요."}
+              {isCopied ? "클립보드에 복사됐어요. 이제 OpenAI 입력창에 붙여넣으면 됩니다." : isCopying ? "프롬프트를 만들고 클립보드에 복사하는 중입니다." : "브라우저 복사 권한을 확인한 뒤 다시 눌러 주세요."}
             </p>
           ) : null}
         </div>
         <div className="grid gap-2 sm:grid-cols-[1fr_120px]">
-          <Field label="GPT JSON 출력 붙여넣기" hint="GPT가 출력한 JSON 전체를 붙여넣기">
+          <Field label="OpenAI 본문 JSON 붙여넣기" hint="출력한 JSON 전체 붙여넣기">
             <div className="grid gap-2">
               <Textarea
                 value={manualJson}
@@ -1193,7 +1545,7 @@ function SemiManualPanel({
                   hasManualJson ? "bg-[#ecf8ef] text-[#287845]" : "bg-[#fff8df] text-[#8a6b1f]",
                 ].join(" ")}
               >
-                {hasManualJson ? "JSON 입력이 감지됐어요. 아래 버튼을 누르면 편집 화면에 바로 반영됩니다." : "아직 JSON이 비어 있어요. GPT 출력값을 붙여넣어 주세요."}
+                {hasManualJson ? "JSON 입력이 감지됐어요. 아래 버튼을 누르면 편집 화면에 바로 반영됩니다." : "아직 JSON이 비어 있어요. OpenAI 출력값을 붙여넣어 주세요."}
               </p>
             </div>
           </Field>
@@ -1211,7 +1563,7 @@ function SemiManualPanel({
           {hasManualJson ? "붙여넣은 JSON 반영해서 편집 화면 열기" : "JSON 붙여넣은 뒤 반영하기"}
         </Button>
       </div>
-    </section>
+    </details>
   );
 }
 
@@ -1229,7 +1581,7 @@ function ManualPromptButton({
   const isCopying = state === "copying";
   const isCopied = state === "copied";
   const isFailed = state === "failed";
-  const labelPrefix = kind === "naver" ? "네이버" : "워드프레스";
+  const labelPrefix = kind === "naver" ? "네이버 본문" : "워드프레스";
   const promptButtonLabel = isCopying
     ? `${labelPrefix} 복사 중...`
     : isCopied
@@ -1287,7 +1639,7 @@ function WorkflowButton({
   return (
     <button
       type="button"
-      className="min-w-0 rounded-[10px] border border-[#deddd8] bg-[#fafaf8] px-3 py-3 text-left transition-colors duration-200 hover:border-[#b9b7b0] hover:bg-white disabled:cursor-not-allowed disabled:opacity-55"
+      className="w-[148px] min-w-0 shrink-0 rounded-[10px] border border-[#deddd8] bg-[#fafaf8] px-3 py-3 text-left transition-colors duration-200 hover:border-[#b9b7b0] hover:bg-white disabled:cursor-not-allowed disabled:opacity-55 sm:w-auto"
       disabled={disabled}
       onClick={onClick}
     >
@@ -1298,22 +1650,13 @@ function WorkflowButton({
         <StatusPill tone={done ? "success" : active ? "warning" : undefined}>{done ? "완료" : active ? "진행" : "대기"}</StatusPill>
       </span>
       <strong className="block truncate text-[13px] text-[#332d27]">{label}</strong>
-      <span className="mt-1 block truncate text-[11px] text-[#81766b]">{detail}</span>
+      <span className="mt-1 block truncate text-[11px] text-[#6f6f6a]">{detail}</span>
     </button>
   );
 }
 
-function buildTitleCandidates(input: BlogDraftInput, _output: BlogDraftOutput) {
-  const keyword = input.main_keyword || input.topic || "쿠키 선물";
-  const situation = compactSituationForTitle(input);
-
-  return [
-    `${keyword}, 수량과 문구를 어디까지 정하면 좋을까요?`,
-    `${keyword} 쿠키, 너무 가볍지 않은 구성을 찾으시나요?`,
-    `${keyword}, 포장과 전달 방식 때문에 고민되시나요?`,
-    `${keyword}, ${situation}라면 어떻게 준비하면 좋을까요?`,
-    `${keyword}, ${situation}라면 어떤 마음을 담으면 좋을까요?`,
-  ];
+function buildTitleCandidates(input: BlogDraftInput, output: BlogDraftOutput) {
+  return buildLocalTitleCandidates(input, output.selected_products);
 }
 
 function compactSituationForTitle(input: BlogDraftInput) {
@@ -1411,7 +1754,7 @@ function buildExpandedImageGuide(input: BlogDraftInput, output: BlogDraftOutput)
   ];
 }
 
-function recommendationFromProduct(product: Product, input: BlogDraftInput, _index = 0): ProductRecommendation {
+function recommendationFromProduct(product: Product, input: BlogDraftInput): ProductRecommendation {
   return hydrateRecommendation(
     {
       product_name: product.name,
@@ -1449,6 +1792,8 @@ function buildManualPrompt({
   products,
   selectedProducts,
   observations,
+  selectedTitle,
+  titleCandidates,
 }: {
   kind: ManualPromptKind;
   input: BlogDraftInput;
@@ -1456,6 +1801,8 @@ function buildManualPrompt({
   products: Product[];
   selectedProducts: ProductRecommendation[];
   observations: ImageObservation[];
+  selectedTitle: string;
+  titleCandidates: string[];
 }) {
   const selectedDetails = selectedProducts.map((selected) => {
     const product = products.find((item) => item.name === selected.product_name);
@@ -1521,6 +1868,7 @@ ${JSON.stringify(referencePatternPayload(input.reference_style), null, 2)}
 아래 입력값으로 nothingmatters 네이버 블로그 초안만 작성해줘.
 
 중요:
+${buildLockedNaverTitleInstructions(selectedTitle, titleCandidates.length)}
 - 워드프레스 객체는 만들지 않는다.
 - 제품은 아래 selected_products 2개만 소개한다.
 - 없는 후기, 고객 반응, 전국 택배 가능, 과장 표현은 쓰지 않는다.
@@ -1532,10 +1880,7 @@ ${commonData}
 
 반드시 아래 네이버 전용 JSON 구조로 출력:
 {
-  "title_candidates": ["제목 후보 1", "제목 후보 2", "제목 후보 3", "제목 후보 4", "제목 후보 5"],
-  "selected_title": "최종 제목",
   "search_intent": "검색자의 의도",
-  "selected_products": ${JSON.stringify(selectedProducts, null, 2)},
   "sections": [
     { "id": "intro", "type": "intro", "heading": "${naverSectionHeadings[0]}", "body": "본문" },
     { "id": "empathy", "type": "empathy", "heading": "${naverSectionHeadings[1]}", "body": "본문" },
@@ -1556,8 +1901,7 @@ ${commonData}
     { "position": "도입부 아래", "image_type": "대표 이미지", "caption": "사진 아래 문장" },
     { "position": "${selectedProducts[0]?.product_name ?? "첫 번째 제품"} 소개 뒤", "image_type": "제품 디테일", "caption": "사진 아래 문장" },
     { "position": "${selectedProducts[1]?.product_name ?? "두 번째 제품"} 소개 뒤", "image_type": "포장 사진", "caption": "사진 아래 문장" }
-  ],
-  "plain_text_for_naver": "네이버 블로그에 바로 붙여넣을 수 있는 완성형 본문"
+  ]
 }`;
   }
 

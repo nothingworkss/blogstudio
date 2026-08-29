@@ -19,6 +19,14 @@ describe("writing prompt contracts", () => {
     expect(blogLayoutPrompt).toContain("해시태그까지 합산");
   });
 
+  it("uses current mixed title shapes instead of forcing every title into a question", () => {
+    expect(blogLayoutPrompt).toContain("키워드 직결형");
+    expect(blogLayoutPrompt).toContain("질문형은 최대 1개");
+    expect(blogLayoutPrompt).toContain("22~40자");
+    expect(blogLayoutPrompt).toContain("BEST, 완벽, 총정리, 무조건");
+    expect(blogLayoutPrompt).not.toContain("모두 메인 키워드를 자연스럽게 포함한 부드러운 질문형");
+  });
+
   it("does not repeat the already-completed product-selection matrix", () => {
     expect(blogLayoutPrompt).toContain("selected_products의 2개만");
     expect(blogLayoutPrompt).not.toContain("[퇴사 / 승진 / 육아휴직 / 복직]");

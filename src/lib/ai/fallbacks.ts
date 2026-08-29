@@ -9,6 +9,7 @@ import {
 } from "@/lib/product/editorial";
 import { formatMarkdownForWordPress, formatPlainTextForNaver } from "@/lib/utils/copyFormat";
 import { applySeoSectionHeadings, buildWordPressSectionHeadings } from "@/lib/utils/seoHeadings";
+import { buildLocalTitleCandidates } from "@/lib/title-workflow";
 import { selectProductsByScore } from "./selectProducts";
 
 export function fallbackObserveImages(imageUrls: string[]): ImageObservation[] {
@@ -75,10 +76,11 @@ export function fallbackGenerateBlog(params: {
   const cta = input.cta || params.brand.default_cta;
   const referencePattern = referencePatternPayload(input.reference_style);
   const titleObject = withObjectParticle(titleBase);
+  const titleCandidates = buildLocalTitleCandidates(input, selectedProducts);
 
   const outputWithoutPlain = {
-    title_candidates: buildFallbackTitleCandidates(input, first.product_name, second.product_name),
-    selected_title: buildFallbackTitleCandidates(input, first.product_name, second.product_name)[0],
+    title_candidates: titleCandidates,
+    selected_title: titleCandidates[0],
     search_intent: `${titleBase}를 찾는 사람은 부담스럽지 않으면서도 상황에 맞는 선물과 주문 전 확인할 내용을 함께 알고 싶어합니다.`,
     selected_products: selectedProducts,
     sections: [
@@ -404,19 +406,6 @@ function buildFallbackWordPressOutput({
 
   wordpress.markdown_for_wordpress = ensureDistinctText(formatMarkdownForWordPress(wordpress), naverPlainText);
   return wordpress;
-}
-
-function buildFallbackTitleCandidates(input: BlogDraftInput, _firstProduct: string, _secondProduct: string) {
-  const keyword = input.main_keyword || input.topic;
-  const situation = compactSituationForTitle(input);
-
-  return [
-    `${keyword}, 수량과 문구를 어디까지 정하면 좋을까요?`,
-    `${keyword} 쿠키, 너무 가볍지 않은 구성을 찾으시나요?`,
-    `${keyword}, 포장과 전달 방식 때문에 고민되시나요?`,
-    `${keyword}, ${situation}라면 어떻게 준비하면 좋을까요?`,
-    `${keyword}, ${situation}라면 어떤 마음을 담으면 좋을까요?`,
-  ];
 }
 
 function buildWordPressTitleCandidates(input: BlogDraftInput, firstProduct: string, secondProduct: string) {
