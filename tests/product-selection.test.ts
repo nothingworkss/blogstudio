@@ -99,7 +99,8 @@ describe("product selection scoring", () => {
     );
     expect(output.sections.map((section) => section.heading)).not.toContain("도입부");
     expect(output.sections.map((section) => section.heading)).not.toContain("상황 공감");
-    expect(output.sections[0]?.heading).toContain(draftInput.main_keyword);
+    expect(output.sections[0]?.heading).not.toContain(draftInput.main_keyword);
+    expect(output.sections[0]?.body).toContain(draftInput.main_keyword);
     expect(output.sections[1]?.heading).toContain(draftInput.sub_keywords[0]);
     expect(output.wordpress.markdown_for_wordpress).toContain("# ");
     expect(output.wordpress.markdown_for_wordpress).toContain("## ");
@@ -144,6 +145,71 @@ describe("product selection scoring", () => {
     const sparseSelection = selectedProducts.find((product) => product.product_name === "테스트 쿠키");
     expect(sparseSelection?.missing_info.length).toBeGreaterThan(0);
     expect(sparseSelection?.summary.packaging_mood).toContain("상담");
+  });
+
+  it("keeps generic gift content free from stale resignation copy and places the SEO keyword in the intro body", () => {
+    const draftInput = input({
+      topic: "감사 답례품",
+      main_keyword: "답례품 쿠키",
+      situation: "감사한 분들에게 쿠키를 나누는 상황",
+      raw_memo: "문구형과 선물형 구성을 비교하고 싶다",
+      preferred_products: ["커스텀형 브라우니쿠키", "수제쿠키 패키지"],
+    });
+    const selectedProducts = hydrateRecommendations({
+      input: draftInput,
+      products: seedProducts,
+      recommendations: [
+        {
+          product_name: "커스텀형 브라우니쿠키",
+          reason: "짧은 문구를 담는 기준",
+          angle: "문구를 남기는 답례품",
+          main_points: ["문구", "날짜", "포장"],
+          caution: "일정 확인 필요",
+          summary: {
+            recommended_situation: "",
+            one_line_point: "",
+            message_point: "",
+            packaging_mood: "",
+            order_check: "",
+          },
+          owner_comment: "",
+          missing_info: [],
+        },
+        {
+          product_name: "수제쿠키 패키지",
+          reason: "구성과 포장 인상을 보여주는 기준",
+          angle: "선물처럼 보이는 답례품",
+          main_points: ["구성", "포장", "수량"],
+          caution: "구성 확인 필요",
+          summary: {
+            recommended_situation: "",
+            one_line_point: "",
+            message_point: "",
+            packaging_mood: "",
+            order_check: "",
+          },
+          owner_comment: "",
+          missing_info: [],
+        },
+      ],
+    });
+    const output = fallbackGenerateBlog({
+      input: draftInput,
+      brand: seedBrand,
+      selectedProducts,
+      observations: [],
+    });
+    const productText = output.sections
+      .filter((section) => section.type === "product_recommendation")
+      .map((section) => `${section.heading}\n${section.body}`)
+      .join("\n");
+
+    expect(productText).not.toContain("퇴사");
+    expect(productText).toContain(draftInput.main_keyword);
+    expect(output.sections[0]?.body).toContain(draftInput.main_keyword);
+    expect(output.sections[0]?.heading).not.toContain(draftInput.main_keyword);
+    expect(output.selected_title).toContain(draftInput.main_keyword);
+    expect(output.hashtags).toContain(`#${draftInput.main_keyword.replace(/\s+/g, "")}`);
   });
 
   it("hydrates the exact custom brownie product before the shorter brownie match", () => {

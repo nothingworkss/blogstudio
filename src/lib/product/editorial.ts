@@ -96,7 +96,7 @@ export function hydrateRecommendation(
   product: Product,
   input: BlogDraftInput,
 ): ProductRecommendation {
-  const profile = normalizeEditorialProfile(product.editorial_profile);
+  const profile = contextualizeEditorialProfile(normalizeEditorialProfile(product.editorial_profile), input);
   const existingSummary = recommendation.summary ?? emptyEditorialProfile();
   const summary = Object.fromEntries(
     editorialSummaryFields.map(({ key }) => [
@@ -113,9 +113,9 @@ export function hydrateRecommendation(
   const ownerComment =
     draftAnswer(input, product.name, "owner_comment") ||
     profile.owner_comment ||
-    recommendation.owner_comment ||
-    product.default_intro ||
-    `${product.name}은 ${input.topic} 상황에서 구성과 일정을 먼저 보면 기준을 잡기 쉽습니다.`;
+    contextCompatibleText(recommendation.owner_comment, input) ||
+    contextualOwnerComment(product, input) ||
+    contextCompatibleText(product.default_intro, input);
   const missingInfo = mergeUnique([
     ...getMissingEditorialInfo(product, input),
     ...(recommendation.missing_info ?? []),
@@ -242,7 +242,9 @@ function pickEditorialValue({
   if (existingValue) return existingValue;
 
   if (key === "recommended_situation") return input.topic || product.fit_situations.slice(0, 3).join(", ");
-  if (key === "one_line_point") return product.default_intro || product.short_description || "제품 한줄 포인트 확인 필요";
+  if (key === "one_line_point") {
+    return contextCompatibleText(product.default_intro, input) || product.short_description || "제품 한줄 포인트 확인 필요";
+  }
   if (key === "message_point") {
     return hasProductMarker(product, "문구") ? "짧은 문구 포인트를 상담하면서 맞추기 좋습니다." : "문구 적용 여부는 상담 시 확인이 필요합니다.";
   }
@@ -308,6 +310,9 @@ function normalizeProductRecommendationSection({
   if (!body.trim()) {
     return formatProductRecommendationBody({ input, recommendation, otherRecommendation });
   }
+  if (!contextCompatibleText(body, input)) {
+    return formatProductRecommendationBody({ input, recommendation, otherRecommendation });
+  }
 
   if (body.includes("**사장님한마디 😎**")) return normalizeCheckBullets(body);
   if (body.includes("[한눈에 보기]") || body.includes("추천 상황:") || body.includes("낫띵의 한마디") || body.includes("사장님 한마디")) {
@@ -337,14 +342,59 @@ function specificSituationPhrase(input: BlogDraftInput, recommendation: ProductR
   return fallback ? `${fallback}을 기준으로 고를 때` : "받는 사람과 전달하는 날이 어느 정도 정해져 있을 때";
 }
 
+function contextualizeEditorialProfile(profile: ProductEditorialProfile, input: BlogDraftInput) {
+  return Object.fromEntries(
+    Object.entries(profile).map(([key, value]) => [key, contextCompatibleText(value, input)]),
+  ) as ProductEditorialProfile;
+}
+
+function contextCompatibleText(value: string | null | undefined, input: BlogDraftInput) {
+  const text = value?.trim() ?? "";
+  if (!text) return "";
+
+  const textContexts = extractSituationContexts(text);
+  if (!textContexts.length) return text;
+
+  const inputText = [input.topic, input.main_keyword, input.situation, input.raw_memo].filter(Boolean).join(" ");
+  const inputContexts = extractSituationContexts(inputText);
+  if (!inputContexts.length) return "";
+  return textContexts.every((context) => inputContexts.includes(context)) ? text : "";
+}
+
+function extractSituationContexts(value: string) {
+  const contextPatterns: Array<[string, RegExp]> = [
+    ["퇴사", /퇴사|마지막 출근/],
+    ["승진", /승진/],
+    ["육아휴직", /육아휴직|출산휴가/],
+    ["복직", /복직/],
+    ["결혼", /결혼|웨딩/],
+    ["어린이", /어린이날|어린이집|유치원|아이들? 선물/],
+    ["스승", /스승의?\s*날|선생님/],
+    ["어버이", /어버이날|부모님/],
+    ["생일", /생일/],
+    ["졸업", /졸업/],
+    ["기업행사", /기업\s*행사|브랜드\s*행사|회사\s*행사/],
+    ["응원", /응원|시험/],
+    ["새해", /새해/],
+  ];
+  return contextPatterns.filter(([, pattern]) => pattern.test(value)).map(([context]) => context);
+}
+
+function contextualOwnerComment(product: Product, input: BlogDraftInput) {
+  const keyword = input.main_keyword || input.topic || "이번 답례품";
+  if (hasProductMarker(product, "문구") || product.name.includes("커스텀")) {
+    return `${keyword}에서 이름이나 짧은 문구를 남기고 싶다면, 문구 길이와 전달할 말을 먼저 정하는 편이 자연스럽습니다.`;
+  }
+  if (product.name.includes("수제쿠키") || product.category.includes("선물")) {
+    return `${keyword}에서 받는 순간의 구성과 포장 인상이 중요하다면, 나눌 수량과 포장 단위를 먼저 보는 편이 좋습니다.`;
+  }
+  return `${keyword}에 맞는 구성을 고를 때는 제품 이름보다 전달할 날짜, 수량, 포장 기준을 먼저 보면 정리하기 쉽습니다.`;
+}
+
 function shortSummarySentence(value: string) {
   const trimmed = value.trim().replace(/\s+/g, " ");
   const firstSentence = trimmed.match(/^[^.!?。]+(?:[.!?。]|요\.|니다\.)?/)?.[0] ?? trimmed;
   return cleanSentence(firstSentence);
-}
-
-function subjectParticle(value: string) {
-  return hasFinalConsonant(value) ? "이" : "가";
 }
 
 function topicParticle(value: string) {

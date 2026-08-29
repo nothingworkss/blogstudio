@@ -90,11 +90,11 @@ const idleManualTitleWorkflow: ManualTitleWorkflow = {
 };
 
 const defaultInput: BlogDraftInput = {
-  topic: "퇴사 답례품",
-  main_keyword: "퇴사 답례품",
-  sub_keywords: ["회사 답례품", "육아휴직 답례품", "커스텀 쿠키"],
-  situation: "회사 마지막 날 팀원들에게 나눠줄 쿠키를 소개하는 글",
-  raw_memo: "문구를 넣을 수 있는 쿠키 답례품으로 소개하고 싶다.",
+  topic: "",
+  main_keyword: "",
+  sub_keywords: [],
+  situation: "",
+  raw_memo: "",
   post_type: "답례품 판매형",
   reference_style: "답례품 추천형",
   preferred_products: [],
@@ -170,7 +170,29 @@ export function BlogStudioApp({
   );
 
   function navigate(next: StudioView) {
+    if (next === "new") {
+      startNewPost();
+      return;
+    }
     setView(next);
+  }
+
+  function startNewPost(topic = "") {
+    setInput({
+      ...emptyInput,
+      topic,
+      main_keyword: topic,
+      cta: brandDraft.default_cta || defaultInput.cta,
+    });
+    setSelectedProducts([]);
+    setObservations([]);
+    setQualityCheck(null);
+    setCurrentDraft(null);
+    setOutput(null);
+    setManualJson("");
+    setManualCopyState(idleManualCopyState);
+    setManualTitleWorkflow(idleManualTitleWorkflow);
+    setView("new");
   }
 
   function updateDraftInput(next: BlogDraftInput) {
@@ -511,17 +533,8 @@ export function BlogStudioApp({
   }
 
   function resetNewPost() {
-    setInput({ ...emptyInput, cta: brandDraft.default_cta || defaultInput.cta });
-    setSelectedProducts([]);
-    setObservations([]);
-    setQualityCheck(null);
-    setCurrentDraft(null);
-    setOutput(null);
-    setManualJson("");
-    setManualCopyState(idleManualCopyState);
-    setManualTitleWorkflow(idleManualTitleWorkflow);
+    startNewPost();
     setNotice("새 글 입력을 비웠습니다. 처음부터 다시 시작할 수 있습니다.");
-    setView("new");
   }
 
   async function applyManualJson() {
@@ -663,10 +676,7 @@ export function BlogStudioApp({
               <DashboardView
                 drafts={drafts}
                 products={products}
-                onNew={(topic) => {
-                  setInput((prev) => ({ ...prev, topic, main_keyword: topic }));
-                  setView("new");
-                }}
+                onNew={startNewPost}
                 onOpenDraft={openDraft}
               />
             ) : null}
@@ -1004,10 +1014,18 @@ function NewPostView({
         </div>
         <div className="grid gap-4 lg:grid-cols-2">
           <Field label="글 주제">
-            <Input value={input.topic} placeholder="예: 퇴사 답례품" onChange={(event) => onInput({ ...input, topic: event.target.value })} />
+            <Input
+              value={input.topic}
+              placeholder="예: 감사 답례품"
+              onChange={(event) => {
+                const topic = event.target.value;
+                const syncMainKeyword = !input.main_keyword.trim() || input.main_keyword === input.topic;
+                onInput({ ...input, topic, main_keyword: syncMainKeyword ? topic : input.main_keyword });
+              }}
+            />
           </Field>
           <Field label="메인 키워드" hint="본문 전체 3회 기준">
-            <Input value={input.main_keyword} placeholder="예: 퇴사 답례품" onChange={(event) => onInput({ ...input, main_keyword: event.target.value })} />
+            <Input value={input.main_keyword} placeholder="예: 답례품 쿠키" onChange={(event) => onInput({ ...input, main_keyword: event.target.value })} />
           </Field>
           <Field label="서브 키워드" hint="쉼표로 구분">
             <Input value={input.sub_keywords.join(", ")} placeholder="회사 답례품, 커스텀 쿠키" onChange={(event) => onInput({ ...input, sub_keywords: splitByComma(event.target.value) })} />
@@ -1832,13 +1850,8 @@ function buildManualPrompt({
         ? {
             name: product.name,
             category: product.category,
-            fit_situations: product.fit_situations,
-            keywords: product.keywords,
             strengths: product.strengths,
             cautions: product.cautions,
-            editorial_profile: product.editorial_profile,
-            default_intro: product.default_intro,
-            default_faq: product.default_faq,
           }
         : null,
       };

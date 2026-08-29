@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { blogLayoutPrompt } from "@/lib/prompts/blog-layout";
+import { productSelectorPrompt } from "@/lib/prompts/product-selector";
 import { sectionRegeneratorPrompt } from "@/lib/prompts/section-regenerator";
 import { wordpressLayoutPrompt } from "@/lib/prompts/wordpress-layout";
 
@@ -17,6 +18,7 @@ describe("writing prompt contracts", () => {
     expect(blogLayoutPrompt).toContain("메인 키워드는 완성 본문 전체에서 정확히 3회");
     expect(blogLayoutPrompt).toContain("서브 키워드는 각 키워드별 최대 2회");
     expect(blogLayoutPrompt).toContain("해시태그까지 합산");
+    expect(blogLayoutPrompt).toContain("최종 제목 1회, 도입 본문 1회, 해시태그 1회");
   });
 
   it("uses current mixed title shapes instead of forcing every title into a question", () => {
@@ -31,6 +33,12 @@ describe("writing prompt contracts", () => {
     expect(blogLayoutPrompt).toContain("selected_products의 2개만");
     expect(blogLayoutPrompt).not.toContain("[퇴사 / 승진 / 육아휴직 / 복직]");
     expect(blogLayoutPrompt.length).toBeLessThan(6_500);
+  });
+
+  it("treats product mappings as hints and keeps the current topic authoritative", () => {
+    expect(productSelectorPrompt).toContain("고정 선택표가 아니라");
+    expect(productSelectorPrompt).toContain("현재 input");
+    expect(productSelectorPrompt).toContain("현재 입력에 없는 퇴사");
   });
 
   it("gives WordPress a distinct editorial contract", () => {
