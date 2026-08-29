@@ -51,6 +51,7 @@ import {
   buildManualTitlePrompt,
   buildTitleContextFingerprint,
   getTitleWarnings,
+  isManualTitlePromptText,
   parseTitleCandidates,
 } from "@/lib/title-workflow";
 import { blogDraftOutputSchema } from "@/lib/validations/blog.schema";
@@ -155,6 +156,14 @@ export function BlogStudioApp({
   const currentTitleWorkflow = manualTitleWorkflow.contextKey === titleContextKey
     ? manualTitleWorkflow
     : { ...idleManualTitleWorkflow, contextKey: titleContextKey };
+  const localTitleCandidates = useMemo(
+    () => selectedProducts.length === 2 ? buildLocalTitleCandidates(input, selectedProducts) : [],
+    [input, selectedProducts],
+  );
+  const currentTitleCandidates = currentTitleWorkflow.candidates.length
+    ? currentTitleWorkflow.candidates
+    : localTitleCandidates;
+  const titleCandidateSource = currentTitleWorkflow.candidates.length ? "openai" as const : "local" as const;
   const titleWarnings = useMemo(
     () => getTitleWarnings(currentTitleWorkflow.selectedTitle, input.main_keyword),
     [currentTitleWorkflow.selectedTitle, input.main_keyword],
@@ -441,6 +450,7 @@ export function BlogStudioApp({
 
   function applyManualTitleText(value: string) {
     const candidates = parseTitleCandidates(value);
+    const pastedPromptItself = isManualTitlePromptText(value);
     updateCurrentTitleWorkflow((current) => ({
       ...current,
       sourceText: value,
@@ -451,7 +461,9 @@ export function BlogStudioApp({
     setNotice(
       candidates.length
         ? `제목 후보 ${candidates.length}개를 불러왔습니다. 하나를 고르거나 직접 수정해 주세요.`
-        : "제목 후보를 찾지 못했습니다. 번호 목록이나 JSON 전체를 붙여넣어 주세요.",
+        : pastedPromptItself
+          ? "제목 프롬프트 자체가 붙여넣어졌습니다. 프롬프트를 OpenAI에 넣고, OpenAI가 만든 제목 답변만 다시 붙여넣어 주세요. 기본 제목 5개는 그대로 유지됩니다."
+          : "실제 제목 후보를 찾지 못했습니다. 기본 제목 5개는 그대로 유지됩니다.",
     );
   }
 
@@ -485,7 +497,7 @@ export function BlogStudioApp({
       selectedProducts,
       observations,
       selectedTitle: currentTitleWorkflow.selectedTitle,
-      titleCandidates: currentTitleWorkflow.candidates,
+      titleCandidates: currentTitleCandidates,
     });
 
     if (await copyTextToClipboard(prompt)) {
@@ -526,7 +538,7 @@ export function BlogStudioApp({
       const titleLockedJson = currentTitleWorkflow.selectedTitle.trim()
         ? applyLockedNaverTitle(parsedJson, {
             selectedTitle: currentTitleWorkflow.selectedTitle,
-            titleCandidates: currentTitleWorkflow.candidates,
+            titleCandidates: currentTitleCandidates,
             input,
             selectedProducts: manualSelectedProducts,
           })
@@ -535,7 +547,7 @@ export function BlogStudioApp({
       const titleLockedOutput = currentTitleWorkflow.selectedTitle.trim()
         ? applyLockedNaverTitle(normalized, {
             selectedTitle: currentTitleWorkflow.selectedTitle,
-            titleCandidates: currentTitleWorkflow.candidates,
+            titleCandidates: currentTitleCandidates,
             input,
             selectedProducts: manualSelectedProducts,
           })
@@ -672,7 +684,8 @@ export function BlogStudioApp({
                 manualJson={manualJson}
                 manualCopyState={manualCopyState}
                 manualTitleText={currentTitleWorkflow.sourceText}
-                titleCandidates={currentTitleWorkflow.candidates}
+                titleCandidates={currentTitleCandidates}
+                titleCandidateSource={titleCandidateSource}
                 selectedTitle={currentTitleWorkflow.selectedTitle}
                 titleWarnings={titleWarnings}
                 manualTitleCopyState={currentTitleWorkflow.copyState}
@@ -845,6 +858,7 @@ function NewPostView({
   manualCopyState,
   manualTitleText,
   titleCandidates,
+  titleCandidateSource,
   selectedTitle,
   titleWarnings,
   manualTitleCopyState,
@@ -879,6 +893,7 @@ function NewPostView({
   manualCopyState: ManualCopyStateMap;
   manualTitleText: string;
   titleCandidates: string[];
+  titleCandidateSource: "local" | "openai";
   selectedTitle: string;
   titleWarnings: string[];
   manualTitleCopyState: ManualCopyState;
@@ -1032,6 +1047,7 @@ function NewPostView({
           canCreatePrompt={selectedProducts.length === 2}
           sourceText={manualTitleText}
           candidates={titleCandidates}
+          candidateSource={titleCandidateSource}
           selectedTitle={selectedTitle}
           warnings={titleWarnings}
           copyState={manualTitleCopyState}
@@ -1314,6 +1330,7 @@ function ManualTitlePanel({
   canCreatePrompt,
   sourceText,
   candidates,
+  candidateSource,
   selectedTitle,
   warnings,
   copyState,
@@ -1325,6 +1342,7 @@ function ManualTitlePanel({
   canCreatePrompt: boolean;
   sourceText: string;
   candidates: string[];
+  candidateSource: "local" | "openai";
   selectedTitle: string;
   warnings: string[];
   copyState: ManualCopyState;
@@ -1346,7 +1364,7 @@ function ManualTitlePanel({
             <span className="grid size-7 place-items-center rounded-full bg-[#b4233f] text-[12px] font-bold text-white">3</span>
             <h3 className="text-[16px] font-bold text-[#27272a]">제목을 먼저 고르세요</h3>
           </div>
-          <p className="mt-2 text-[12px] leading-5 text-[#6f6f6a]">OpenAI에서 후보만 받아온 뒤, 선택하거나 직접 고친 제목을 본문에 고정합니다.</p>
+          <p className="mt-2 text-[12px] leading-5 text-[#6f6f6a]">제품을 고르면 실제 제목 5개가 바로 나옵니다. 원하면 OpenAI 결과로 후보를 교체할 수 있습니다.</p>
         </div>
         <Button
           type="button"
@@ -1356,7 +1374,7 @@ function ManualTitlePanel({
           disabled={!canCreatePrompt || isCopying}
           onClick={onCreatePrompt}
         >
-          {isCopying ? "복사 중" : isCopied ? "제목 프롬프트 복사 완료" : "OpenAI 제목 프롬프트 복사"}
+          {isCopying ? "복사 중" : isCopied ? "제목 프롬프트 복사 완료" : "OpenAI용 제목 프롬프트 복사"}
         </Button>
       </div>
 
@@ -1395,8 +1413,10 @@ function ManualTitlePanel({
           </div>
         ) : (
           <div className="flex items-center justify-between gap-3 rounded-[10px] bg-[#f7f6f3] px-3 py-2">
-            <span className="text-[12px] font-medium text-[#5f5f5a]">OpenAI 제목 후보 {candidates.length}개를 불러왔습니다.</span>
-            <Button type="button" variant="ghost" className="h-8 shrink-0 px-2 text-[11px]" onClick={() => setShowSource(true)}>다시 붙여넣기</Button>
+            <span className="text-[12px] font-medium text-[#5f5f5a]">
+              {candidateSource === "openai" ? `OpenAI 제목 후보 ${candidates.length}개를 불러왔습니다.` : `기본 제목 후보 ${candidates.length}개가 준비되었습니다.`}
+            </span>
+            <Button type="button" variant="ghost" className="h-8 shrink-0 px-2 text-[11px]" onClick={() => setShowSource(true)}>OpenAI 결과 붙여넣기</Button>
           </div>
         )}
 
@@ -1404,7 +1424,7 @@ function ManualTitlePanel({
           <div className="grid gap-2">
             <div className="flex items-center justify-between gap-3">
               <h4 className="text-[13px] font-bold text-[#27272a]">제목 후보</h4>
-              <span className="text-[11px] text-[#6f6f6a]">{candidates.length}개 · 하나를 선택하세요</span>
+              <span className="text-[11px] text-[#6f6f6a]">{candidateSource === "openai" ? "OpenAI" : "기본"} {candidates.length}개 · 하나를 선택하세요</span>
             </div>
             <div className="divide-y divide-[#ecebe7] border-y border-[#ecebe7]">
               {candidates.map((title, index) => {

@@ -8,6 +8,7 @@ import {
   buildManualTitlePrompt,
   buildTitleContextFingerprint,
   getTitleWarnings,
+  isManualTitlePromptText,
   parseTitleCandidates,
 } from "@/lib/title-workflow";
 
@@ -73,6 +74,29 @@ describe("semi-manual title workflow", () => {
       "객체 제목 2",
     ]);
     expect(parseTitleCandidates("1. 중복 제목\n2. 중복 제목\n3. 다른 제목")).toEqual(["중복 제목", "다른 제목"]);
+  });
+
+  it("rejects the copied prompt skeleton instead of treating style labels as titles", () => {
+    const copiedPrompt = `후보 구성:
+1. 키워드 직결형
+2. 구체적 상황형
+3. 선택 기준형
+4. 제품 비교형
+5. 부드러운 호기심형
+
+작성 규칙:
+- 질문형은 최대 1개만 쓴다.
+
+출력 형식:
+1. 제목
+2. 제목
+3. 제목
+4. 제목
+5. 제목`;
+
+    expect(isManualTitlePromptText(copiedPrompt)).toBe(true);
+    expect(parseTitleCandidates(copiedPrompt)).toEqual([]);
+    expect(parseTitleCandidates("1. 키워드 직결형\n2. 구체적 상황형\n3. 선택 기준형")).toEqual([]);
   });
 
   it("builds a compact mixed-style title prompt without an app API call", () => {

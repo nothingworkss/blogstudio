@@ -3,6 +3,14 @@ import type { ImageObservation } from "@/types/image";
 import type { ProductRecommendation } from "@/types/product";
 
 const promotionalTitleTerms = ["BEST", "완벽", "총정리", "무조건", "역대급", "인기 폭발"];
+const titleSkeletonLabels = new Set([
+  "제목",
+  "키워드 직결형",
+  "구체적 상황형",
+  "선택 기준형",
+  "제품 비교형",
+  "부드러운 호기심형",
+]);
 
 export function parseTitleCandidates(value: string) {
   const cleaned = value
@@ -11,15 +19,16 @@ export function parseTitleCandidates(value: string) {
     .replace(/```$/i, "")
     .trim();
   if (!cleaned) return [];
+  if (isManualTitlePromptText(cleaned)) return [];
 
   const parsedCandidates = parseJsonCandidates(cleaned);
-  if (parsedCandidates.length) return uniqueTitles(parsedCandidates).slice(0, 5);
+  if (parsedCandidates.length) return cleanParsedTitleCandidates(parsedCandidates).slice(0, 5);
 
   const lines = cleaned.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   const listedLines = lines.filter((line) => /^(?:\d{1,2}[.)]|[-*•])\s*/.test(line));
   const source = listedLines.length ? listedLines : lines;
 
-  return uniqueTitles(
+  return cleanParsedTitleCandidates(
     source.map((line) =>
       line
         .replace(/^(?:\d{1,2}[.)]|[-*•])\s*/, "")
@@ -28,6 +37,11 @@ export function parseTitleCandidates(value: string) {
         .trim(),
     ),
   ).slice(0, 5);
+}
+
+export function isManualTitlePromptText(value: string) {
+  const markers = ["후보 구성:", "작성 규칙:", "출력 형식:", "너는 nothingmatters 네이버 블로그의 제목 에디터다"];
+  return markers.filter((marker) => value.includes(marker)).length >= 2;
 }
 
 export function buildManualTitlePrompt({
@@ -219,6 +233,10 @@ function uniqueTitles(titles: string[]) {
       seen.add(title);
       return true;
     });
+}
+
+function cleanParsedTitleCandidates(titles: string[]) {
+  return uniqueTitles(titles).filter((title) => !titleSkeletonLabels.has(title));
 }
 
 function compactSituation(value: string, keyword: string) {
