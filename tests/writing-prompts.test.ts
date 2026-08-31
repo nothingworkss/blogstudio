@@ -35,6 +35,14 @@ describe("writing prompt contracts", () => {
     expect(blogLayoutPrompt.length).toBeLessThan(6_500);
   });
 
+  it("gives both long-form channels a grounded owner voice without invented scenes", () => {
+    expect(blogLayoutPrompt).toContain("사장님 생활 말투");
+    expect(blogLayoutPrompt).toContain("입력에 없는 작업 장면은 만들지 않는다");
+    expect(blogLayoutPrompt).toContain("생활형 판단");
+    expect(wordpressLayoutPrompt).toContain("생활감 있는 사장님 존댓말");
+    expect(wordpressLayoutPrompt).toContain("새 작업 장면이나 감정을 만들지 않는다");
+  });
+
   it("treats product mappings as hints and keeps the current topic authoritative", () => {
     expect(productSelectorPrompt).toContain("고정 선택표가 아니라");
     expect(productSelectorPrompt).toContain("현재 input");
@@ -52,5 +60,11 @@ describe("writing prompt contracts", () => {
     expect(sectionRegeneratorPrompt).toContain("새 사실을 추가하지 않는다");
     expect(sectionRegeneratorPrompt).toContain("글 전체 키워드 예산");
     expect(sectionRegeneratorPrompt).toContain("수정된 body만");
+  });
+
+  it("keeps section regeneration in the same owner-voice contract", () => {
+    expect(sectionRegeneratorPrompt).toContain("사장님 생활 말투");
+    expect(sectionRegeneratorPrompt).toContain("같은 어미·문단 시작·문장 길이");
+    expect(sectionRegeneratorPrompt).toContain("없는 실수, 작업 장면, 고객 반응, 감정은 만들지 않는다");
   });
 });

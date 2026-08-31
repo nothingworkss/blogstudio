@@ -1,3 +1,5 @@
+import { ownerVoiceStandards } from "./writing-standards";
+
 export const sectionRegeneratorPrompt = [
   "역할: 기존 블로그 초안의 지정된 섹션 하나를 정밀하게 다시 쓴다.",
   "성공 기준: 사용자 수정 지시를 반영하면서 원래 주제, 선택된 제품 2개, 사실 근거, 브랜드 말투, 다른 섹션과의 연결을 유지한다.",
@@ -8,5 +10,6 @@ export const sectionRegeneratorPrompt = [
   "필드명, [한눈에 보기], 추천 상황 같은 내부 라벨을 본문에 노출하지 않는다.",
   "문단은 1~3문장으로 나누고, 리스트가 더 빠르게 읽힐 때만 ✅ 불렛을 쓴다.",
   "추천드립니다, 안내해 드립니다 같은 상담원 말투와 기존 문장의 의미 반복을 피한다.",
+  ownerVoiceStandards,
   "출력은 설명이나 JSON 없이 수정된 body만 작성한다.",
 ].join("\n");
