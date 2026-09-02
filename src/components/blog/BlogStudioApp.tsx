@@ -42,6 +42,7 @@ import {
 import { getReferencePattern, referencePatternPayload, referenceStyles } from "@/lib/reference/blog-patterns";
 import { formatImageGuide, formatMarkdownForWordPress, formatPlainTextForNaver, formatWordPressImageGuide, normalizeCheckBullets } from "@/lib/utils/copyFormat";
 import { getSeoCheck } from "@/lib/utils/formatBlog";
+import { parseJsonFromText } from "@/lib/utils/parseJsonFromText";
 import { applySeoSectionHeadings, buildSeoSectionHeadings, buildWordPressSectionHeadings } from "@/lib/utils/seoHeadings";
 import { splitByComma } from "@/lib/utils/strings";
 import {
@@ -1908,6 +1909,8 @@ ${buildLockedNaverTitleInstructions(selectedTitle, titleCandidates.length)}
 - 내부 예제 글 원문이나 다른 브랜드명은 절대 재사용하지 않는다.
 - 출력은 설명 없이 JSON 객체만 작성한다.
 - 마크다운 코드블록(\`\`\`) 없이 JSON만 출력한다.
+- 문자열 안의 인용은 큰따옴표(") 대신 작은따옴표나 ‘ ’를 사용한다.
+- 문자열 안의 줄바꿈은 실제 줄바꿈 대신 \\n으로 작성하고 마지막 항목 뒤에는 쉼표를 붙이지 않는다.
 
 ${commonData}
 
@@ -1951,6 +1954,8 @@ ${commonData}
 - 본문 끝에 해시태그를 붙이지 말고 tags와 categories 배열로 분리한다.
 - 출력은 설명 없이 JSON 객체만 작성한다.
 - 마크다운 코드블록(\`\`\`) 없이 JSON만 출력한다.
+- 문자열 안의 인용은 큰따옴표(") 대신 작은따옴표나 ‘ ’를 사용한다.
+- 문자열 안의 줄바꿈은 실제 줄바꿈 대신 \\n으로 작성하고 마지막 항목 뒤에는 쉼표를 붙이지 않는다.
 
 ${commonData}
 
@@ -1990,41 +1995,6 @@ ${JSON.stringify(wordpressSectionHeadings, null, 2)}
   ],
   "markdown_for_wordpress": "# 질문형 최종 제목\\n\\n## ${wordpressSectionHeadings[0]}\\n\\n본문"
 }`;
-}
-
-function parseJsonFromText(value: string) {
-  const trimmed = value.trim();
-  const withoutFence = trimmed
-    .replace(/^```(?:json)?/i, "")
-    .replace(/```$/i, "")
-    .trim();
-  const start = withoutFence.indexOf("{");
-  const end = withoutFence.lastIndexOf("}");
-  if (start === -1 || end === -1 || end <= start) {
-    throw new Error("JSON 객체를 찾을 수 없습니다.");
-  }
-
-  const jsonText = withoutFence.slice(start, end + 1);
-
-  try {
-    return JSON.parse(jsonText) as Record<string, unknown>;
-  } catch (error) {
-    const repairedJsonText = repairLooseJsonEscapes(jsonText);
-    if (repairedJsonText !== jsonText) {
-      try {
-        return JSON.parse(repairedJsonText) as Record<string, unknown>;
-      } catch {
-        // Keep the original parser message below because it points to the user's pasted text.
-      }
-    }
-
-    const message = error instanceof Error ? error.message : "JSON 형식 오류";
-    throw new Error(`JSON을 읽을 수 없습니다. GPT 출력에 잘못된 escape 문자가 있는지 확인해 주세요. (${message})`);
-  }
-}
-
-function repairLooseJsonEscapes(jsonText: string) {
-  return jsonText.replace(/\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})/g, "\\\\");
 }
 
 function inputFromDraft(draft: BlogDraftRecord): BlogDraftInput {

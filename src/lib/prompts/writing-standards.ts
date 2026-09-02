@@ -1,4 +1,4 @@
-export const WRITING_PROMPT_VERSION = "writing-v3-2026-08-31";
+export const WRITING_PROMPT_VERSION = "writing-v4-2026-09-02";
 
 export const ownerVoiceStandards = `
 사장님 생활 말투:
