@@ -386,7 +386,7 @@ function contextualOwnerComment(product: Product, input: BlogDraftInput) {
     return `${keyword}에서 이름이나 짧은 문구를 남기고 싶다면, 문구 길이와 전달할 말을 먼저 정하는 편이 자연스럽습니다.`;
   }
   if (product.name.includes("수제쿠키") || product.category.includes("선물")) {
-    return `${keyword}에서 받는 순간의 구성과 포장 인상이 중요하다면, 나눌 수량과 포장 단위를 먼저 보는 편이 좋습니다.`;
+    return `${keyword}에서 여러 명에게 나눌 구성이라면, 구성 수량과 포장 방식을 먼저 보는 편이 좋습니다.`;
   }
   return `${keyword}에 맞는 구성을 고를 때는 제품 이름보다 전달할 날짜, 수량, 포장 기준을 먼저 보면 정리하기 쉽습니다.`;
 }

@@ -95,7 +95,7 @@ function optionalKeywordHeading(keyword: string | undefined, phrase: string) {
 function productSectionHeading(recommendation: ProductRecommendation | undefined, fallbackName: string) {
   const productName = recommendation?.product_name || fallbackName;
   if (productName.includes("커스텀")) return `${productName}, 문구와 기념 포인트를 보는 기준`;
-  if (productName.includes("수제쿠키")) return `${productName}, 구성과 포장 인상을 보는 기준`;
+  if (productName.includes("수제쿠키")) return `${productName}, 포장을 보는 기준`;
   if (productName.includes("행운")) return `${productName}, 가벼운 메시지를 전하는 기준`;
   if (productName.includes("스콘")) return `${productName}, 차분한 선물감을 보는 기준`;
   if (productName.includes("브라우니")) return `${productName}, 수량과 전달 방식을 보는 기준`;

@@ -47,13 +47,19 @@ import { applySeoSectionHeadings, buildSeoSectionHeadings, buildWordPressSection
 import { splitByComma } from "@/lib/utils/strings";
 import {
   applyLockedNaverTitle,
+  applyLockedWordPressTitle,
   buildLocalTitleCandidates,
   buildLockedNaverTitleInstructions,
+  buildLockedWordPressTitleInstructions,
   buildManualTitlePrompt,
   buildTitleContextFingerprint,
+  getCrossChannelTitleWarnings,
   getTitleWarnings,
   isManualTitlePromptText,
-  parseTitleCandidates,
+  normalizeTitleResult,
+  parseTitlePackage,
+  titleCandidateLabels,
+  type TitleChannel,
 } from "@/lib/title-workflow";
 import { blogDraftOutputSchema } from "@/lib/validations/blog.schema";
 import { CopyToNaverButton } from "./CopyToNaverButton";
@@ -71,11 +77,15 @@ type WorkflowStep = "observe" | "select" | "generate" | "check";
 type ManualPromptKind = "naver" | "wordpress";
 type ManualCopyState = "idle" | "copying" | "copied" | "failed";
 type ManualCopyStateMap = Record<ManualPromptKind, ManualCopyState>;
+type ChannelTitleWorkflow = {
+  candidates: string[];
+  selectedTitle: string;
+};
 type ManualTitleWorkflow = {
   contextKey: string;
   sourceText: string;
-  candidates: string[];
-  selectedTitle: string;
+  naver: ChannelTitleWorkflow;
+  wordpress: ChannelTitleWorkflow;
   copyState: ManualCopyState;
 };
 
@@ -85,8 +95,8 @@ const idleManualCopyState: ManualCopyStateMap = { naver: "idle", wordpress: "idl
 const idleManualTitleWorkflow: ManualTitleWorkflow = {
   contextKey: "",
   sourceText: "",
-  candidates: [],
-  selectedTitle: "",
+  naver: { candidates: [], selectedTitle: "" },
+  wordpress: { candidates: [], selectedTitle: "" },
   copyState: "idle",
 };
 
@@ -157,18 +167,36 @@ export function BlogStudioApp({
   const currentTitleWorkflow = manualTitleWorkflow.contextKey === titleContextKey
     ? manualTitleWorkflow
     : { ...idleManualTitleWorkflow, contextKey: titleContextKey };
-  const localTitleCandidates = useMemo(
-    () => selectedProducts.length === 2 ? buildLocalTitleCandidates(input, selectedProducts) : [],
+  const localNaverTitleCandidates = useMemo(
+    () => selectedProducts.length === 2 ? buildLocalTitleCandidates(input, selectedProducts, "naver") : [],
     [input, selectedProducts],
   );
-  const currentTitleCandidates = currentTitleWorkflow.candidates.length
-    ? currentTitleWorkflow.candidates
-    : localTitleCandidates;
-  const titleCandidateSource = currentTitleWorkflow.candidates.length ? "openai" as const : "local" as const;
-  const titleWarnings = useMemo(
-    () => getTitleWarnings(currentTitleWorkflow.selectedTitle, input.main_keyword),
-    [currentTitleWorkflow.selectedTitle, input.main_keyword],
+  const localWordPressTitleCandidates = useMemo(
+    () => selectedProducts.length === 2 ? buildLocalTitleCandidates(input, selectedProducts, "wordpress") : [],
+    [input, selectedProducts],
   );
+  const currentNaverTitleCandidates = currentTitleWorkflow.naver.candidates.length
+    ? currentTitleWorkflow.naver.candidates
+    : localNaverTitleCandidates;
+  const currentWordPressTitleCandidates = currentTitleWorkflow.wordpress.candidates.length
+    ? currentTitleWorkflow.wordpress.candidates
+    : localWordPressTitleCandidates;
+  const titleCandidateSource = {
+    naver: currentTitleWorkflow.naver.candidates.length ? "openai" as const : "local" as const,
+    wordpress: currentTitleWorkflow.wordpress.candidates.length ? "openai" as const : "local" as const,
+  };
+  const naverTitleWarnings = useMemo(
+    () => getTitleWarnings(currentTitleWorkflow.naver.selectedTitle, input.main_keyword, "naver"),
+    [currentTitleWorkflow.naver.selectedTitle, input.main_keyword],
+  );
+  const wordpressTitleWarnings = useMemo(
+    () => [
+      ...getTitleWarnings(currentTitleWorkflow.wordpress.selectedTitle, input.main_keyword, "wordpress"),
+      ...getCrossChannelTitleWarnings(currentTitleWorkflow.naver.selectedTitle, currentTitleWorkflow.wordpress.selectedTitle),
+    ],
+    [currentTitleWorkflow.naver.selectedTitle, currentTitleWorkflow.wordpress.selectedTitle, input.main_keyword],
+  );
+  const titleWarnings = { naver: naverTitleWarnings, wordpress: wordpressTitleWarnings };
 
   function navigate(next: StudioView) {
     if (next === "new") {
@@ -472,20 +500,30 @@ export function BlogStudioApp({
   }
 
   function applyManualTitleText(value: string) {
-    const candidates = parseTitleCandidates(value);
+    const parsed = parseTitlePackage(value);
     const pastedPromptItself = isManualTitlePromptText(value);
     updateCurrentTitleWorkflow((current) => ({
       ...current,
       sourceText: value,
-      candidates,
-      selectedTitle: candidates.includes(current.selectedTitle) ? current.selectedTitle : "",
+      naver: {
+        candidates: parsed.naver.candidates,
+        selectedTitle: parsed.naver.candidates.includes(current.naver.selectedTitle)
+          ? current.naver.selectedTitle
+          : parsed.naver.selectedTitle,
+      },
+      wordpress: {
+        candidates: parsed.wordpress.candidates,
+        selectedTitle: parsed.wordpress.candidates.includes(current.wordpress.selectedTitle)
+          ? current.wordpress.selectedTitle
+          : parsed.wordpress.selectedTitle,
+      },
     }));
     setManualCopyState(idleManualCopyState);
     setNotice(
-      candidates.length
-        ? `제목 후보 ${candidates.length}개를 불러왔습니다. 하나를 고르거나 직접 수정해 주세요.`
+      parsed.naver.candidates.length || parsed.wordpress.candidates.length
+        ? `네이버 ${parsed.naver.candidates.length}개 · 워드프레스 ${parsed.wordpress.candidates.length}개 제목 후보를 불러왔습니다. 채널별로 하나씩 고르거나 직접 수정해 주세요.`
         : pastedPromptItself
-          ? "제목 프롬프트 자체가 붙여넣어졌습니다. 프롬프트를 OpenAI에 넣고, OpenAI가 만든 제목 답변만 다시 붙여넣어 주세요. 기본 제목 5개는 그대로 유지됩니다."
+          ? "제목 프롬프트 자체가 붙여넣어졌습니다. 프롬프트를 OpenAI에 넣고, OpenAI가 만든 JSON 답변만 다시 붙여넣어 주세요. 기본 제목 5개는 그대로 유지됩니다."
           : "실제 제목 후보를 찾지 못했습니다. 기본 제목 5개는 그대로 유지됩니다.",
     );
   }
@@ -494,8 +532,11 @@ export function BlogStudioApp({
     updateCurrentTitleWorkflow((current) => ({ ...current, sourceText: value }));
   }
 
-  function updateSelectedManualTitle(value: string) {
-    updateCurrentTitleWorkflow((current) => ({ ...current, selectedTitle: value }));
+  function updateSelectedManualTitle(channel: TitleChannel, value: string) {
+    updateCurrentTitleWorkflow((current) => ({
+      ...current,
+      [channel]: { ...current[channel], selectedTitle: value },
+    }));
     setManualCopyState(idleManualCopyState);
   }
 
@@ -505,9 +546,10 @@ export function BlogStudioApp({
       setManualCopyState((prev) => ({ ...prev, [kind]: "failed" }));
       return;
     }
-    if (kind === "naver" && !currentTitleWorkflow.selectedTitle.trim()) {
-      setNotice("네이버 본문 프롬프트를 만들기 전에 제목을 먼저 골라 주세요.");
-      setManualCopyState((prev) => ({ ...prev, naver: "failed" }));
+    const titleWorkflow = currentTitleWorkflow[kind];
+    if (!titleWorkflow.selectedTitle.trim()) {
+      setNotice(`${kind === "naver" ? "네이버" : "워드프레스"} 본문 프롬프트를 만들기 전에 해당 채널 제목을 먼저 골라 주세요.`);
+      setManualCopyState((prev) => ({ ...prev, [kind]: "failed" }));
       return;
     }
 
@@ -519,8 +561,8 @@ export function BlogStudioApp({
       products,
       selectedProducts,
       observations,
-      selectedTitle: currentTitleWorkflow.selectedTitle,
-      titleCandidates: currentTitleCandidates,
+      selectedTitle: titleWorkflow.selectedTitle,
+      titleCandidates: kind === "naver" ? currentNaverTitleCandidates : currentWordPressTitleCandidates,
     });
 
     if (await copyTextToClipboard(prompt)) {
@@ -549,23 +591,44 @@ export function BlogStudioApp({
 
       const parsedJson = parseJsonFromText(jsonText);
       const manualSelectedProducts = resolveManualSelectedProducts(parsedJson, input, selectedProducts, products, output);
-      const titleLockedJson = currentTitleWorkflow.selectedTitle.trim()
-        ? applyLockedNaverTitle(parsedJson, {
-            selectedTitle: currentTitleWorkflow.selectedTitle,
-            titleCandidates: currentTitleCandidates,
+      const isWordPressOnly = isWordPressManualPayload(parsedJson) && !isNaverManualPayload(parsedJson);
+      const titleLockedJson = isWordPressOnly && currentTitleWorkflow.wordpress.selectedTitle.trim()
+        ? applyLockedWordPressTitle(parsedJson, {
+            selectedTitle: currentTitleWorkflow.wordpress.selectedTitle,
+            titleCandidates: currentWordPressTitleCandidates,
             input,
             selectedProducts: manualSelectedProducts,
+            naverTitle: currentTitleWorkflow.naver.selectedTitle,
           })
-        : parsedJson;
+        : !isWordPressOnly && currentTitleWorkflow.naver.selectedTitle.trim()
+          ? applyLockedNaverTitle(parsedJson, {
+              selectedTitle: currentTitleWorkflow.naver.selectedTitle,
+              titleCandidates: currentNaverTitleCandidates,
+              input,
+              selectedProducts: manualSelectedProducts,
+            })
+          : parsedJson;
       const normalized = normalizeManualPatch(titleLockedJson, input, manualSelectedProducts, output);
-      const titleLockedOutput = currentTitleWorkflow.selectedTitle.trim()
+      const naverTitleLockedOutput = currentTitleWorkflow.naver.selectedTitle.trim()
         ? applyLockedNaverTitle(normalized, {
-            selectedTitle: currentTitleWorkflow.selectedTitle,
-            titleCandidates: currentTitleCandidates,
+            selectedTitle: currentTitleWorkflow.naver.selectedTitle,
+            titleCandidates: currentNaverTitleCandidates,
             input,
             selectedProducts: manualSelectedProducts,
           })
         : normalized;
+      const titleLockedOutput = currentTitleWorkflow.wordpress.selectedTitle.trim()
+        ? {
+            ...naverTitleLockedOutput,
+            wordpress: applyLockedWordPressTitle(naverTitleLockedOutput.wordpress, {
+              selectedTitle: currentTitleWorkflow.wordpress.selectedTitle,
+              titleCandidates: currentWordPressTitleCandidates,
+              input,
+              selectedProducts: manualSelectedProducts,
+              naverTitle: naverTitleLockedOutput.selected_title,
+            }),
+          }
+        : naverTitleLockedOutput;
       const parsedOutput = blogDraftOutputSchema.parse(titleLockedOutput);
       const response = await fetch("/api/drafts", {
         method: "POST",
@@ -695,9 +758,9 @@ export function BlogStudioApp({
                 manualJson={manualJson}
                 manualCopyState={manualCopyState}
                 manualTitleText={currentTitleWorkflow.sourceText}
-                titleCandidates={currentTitleCandidates}
+                titleCandidates={{ naver: currentNaverTitleCandidates, wordpress: currentWordPressTitleCandidates }}
                 titleCandidateSource={titleCandidateSource}
-                selectedTitle={currentTitleWorkflow.selectedTitle}
+                selectedTitles={{ naver: currentTitleWorkflow.naver.selectedTitle, wordpress: currentTitleWorkflow.wordpress.selectedTitle }}
                 titleWarnings={titleWarnings}
                 manualTitleCopyState={currentTitleWorkflow.copyState}
                 onInput={updateDraftInput}
@@ -870,7 +933,7 @@ function NewPostView({
   manualTitleText,
   titleCandidates,
   titleCandidateSource,
-  selectedTitle,
+  selectedTitles,
   titleWarnings,
   manualTitleCopyState,
   onInput,
@@ -903,10 +966,10 @@ function NewPostView({
   manualJson: string;
   manualCopyState: ManualCopyStateMap;
   manualTitleText: string;
-  titleCandidates: string[];
-  titleCandidateSource: "local" | "openai";
-  selectedTitle: string;
-  titleWarnings: string[];
+  titleCandidates: Record<TitleChannel, string[]>;
+  titleCandidateSource: Record<TitleChannel, "local" | "openai">;
+  selectedTitles: Record<TitleChannel, string>;
+  titleWarnings: Record<TitleChannel, string[]>;
   manualTitleCopyState: ManualCopyState;
   onInput: (input: BlogDraftInput) => void;
   onMode: (mode: GenerationMode) => void;
@@ -918,7 +981,7 @@ function NewPostView({
   onCreateManualTitlePrompt: () => void;
   onManualTitleText: (value: string) => void;
   onApplyManualTitleText: (value: string) => void;
-  onSelectManualTitle: (value: string) => void;
+  onSelectManualTitle: (channel: TitleChannel, value: string) => void;
   onCreateManualPrompt: (kind: ManualPromptKind) => void | Promise<void>;
   onManualJson: (value: string) => void;
   onApplyManualJson: () => void;
@@ -929,7 +992,7 @@ function NewPostView({
   const isBusy = isGenerating || Boolean(runningStep);
 
   return (
-    <div aria-busy={isBusy} className="grid w-full min-w-0 gap-5">
+    <div aria-busy={isBusy} className="grid w-full min-w-0 grid-cols-1 gap-5">
       <section className="rounded-[18px] border border-[#deddd8] bg-white p-5 sm:p-6">
         <div className="flex min-w-0 flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
           <div className="min-w-0 max-w-2xl">
@@ -977,9 +1040,9 @@ function NewPostView({
             <WorkflowButton
               step="3"
               label="제목 선택"
-              detail={selectedTitle || (titleCandidates.length ? `${titleCandidates.length}개 후보` : "OpenAI 결과 붙여넣기")}
+              detail={selectedTitles.naver || selectedTitles.wordpress || (titleCandidates.naver.length ? `네이버 ${titleCandidates.naver.length}개 · 워드프레스 ${titleCandidates.wordpress.length}개` : "OpenAI 결과 붙여넣기")}
               active={manualTitleCopyState === "copying"}
-              done={Boolean(selectedTitle.trim())}
+              done={Boolean(selectedTitles.naver.trim() && selectedTitles.wordpress.trim())}
               disabled={isBusy || selectedProducts.length !== 2}
               onClick={() => document.getElementById("title-workflow")?.scrollIntoView({ behavior: "smooth", block: "center" })}
             />
@@ -989,7 +1052,7 @@ function NewPostView({
               detail="선택 제목을 고정해 복사"
               active={manualCopyState.naver === "copying"}
               done={manualCopyState.naver === "copied"}
-              disabled={isBusy || !selectedTitle.trim()}
+              disabled={isBusy || !selectedTitles.naver.trim()}
               onClick={() => void onCreateManualPrompt("naver")}
             />
             <WorkflowButton
@@ -1062,12 +1125,12 @@ function NewPostView({
       />
 
       {mode === "semi" ? (
-        <ManualTitlePanel
+        <ChannelTitlePanel
           canCreatePrompt={selectedProducts.length === 2}
           sourceText={manualTitleText}
           candidates={titleCandidates}
           candidateSource={titleCandidateSource}
-          selectedTitle={selectedTitle}
+          selectedTitles={selectedTitles}
           warnings={titleWarnings}
           copyState={manualTitleCopyState}
           onCreatePrompt={onCreateManualTitlePrompt}
@@ -1110,8 +1173,8 @@ function NewPostView({
 
       {mode === "semi" ? (
         <SemiManualPanel
-          canCreateNaverPrompt={selectedProducts.length === 2 && Boolean(selectedTitle.trim())}
-          canCreateWordPressPrompt={selectedProducts.length === 2}
+          canCreateNaverPrompt={selectedProducts.length === 2 && Boolean(selectedTitles.naver.trim())}
+          canCreateWordPressPrompt={selectedProducts.length === 2 && Boolean(selectedTitles.wordpress.trim())}
           manualJson={manualJson}
           copyState={manualCopyState}
           onCreateManualPrompt={onCreateManualPrompt}
@@ -1122,8 +1185,8 @@ function NewPostView({
 
       <section className="sticky bottom-3 z-10 flex flex-col gap-3 rounded-[16px] border border-[#d6d5cf] bg-white/94 p-3 shadow-[0_16px_40px_rgba(24,24,27,0.14)] backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between sm:p-4">
         <div className="min-w-0">
-          <strong className="block text-[13px] text-[#27272a]">{mode === "semi" ? (selectedTitle.trim() ? "제목 선택 완료" : "제목을 먼저 선택해 주세요") : "빠른 자동 생성"}</strong>
-          <span className="mt-0.5 block truncate text-[11px] text-[#6f6f6a]">{mode === "semi" ? (selectedTitle || "선택한 제목을 한 글자도 바꾸지 않고 본문 프롬프트에 고정합니다.") : "제목 자동 선택부터 최종 검수까지 한 번에 진행합니다."}</span>
+          <strong className="block text-[13px] text-[#27272a]">{mode === "semi" ? (selectedTitles.naver.trim() && selectedTitles.wordpress.trim() ? "채널별 제목 선택 완료" : "네이버·워드프레스 제목을 각각 선택해 주세요") : "빠른 자동 생성"}</strong>
+          <span className="mt-0.5 block truncate text-[11px] text-[#6f6f6a]">{mode === "semi" ? (selectedTitles.naver && selectedTitles.wordpress ? "선택한 채널별 제목을 한 글자도 바꾸지 않고 각 본문 프롬프트에 고정합니다." : "각 채널의 검색 목적에 맞는 제목을 하나씩 골라 주세요.") : "제목 자동 선택부터 최종 검수까지 한 번에 진행합니다."}</span>
         </div>
         <Button
           type="button"
@@ -1131,7 +1194,7 @@ function NewPostView({
           className="h-11 w-full shrink-0 px-5 sm:w-auto"
           icon={mode === "semi" ? <WandSparkles className="size-4" /> : isGenerating ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
           onClick={() => mode === "semi" ? void onCreateManualPrompt("naver") : onGenerate()}
-          disabled={isBusy || (mode === "semi" && !selectedTitle.trim())}
+          disabled={isBusy || (mode === "semi" && !selectedTitles.naver.trim())}
         >
           {mode === "semi" ? "선택 제목으로 본문 프롬프트 복사" : "빠른 자동으로 끝까지 생성"}
         </Button>
@@ -1345,12 +1408,12 @@ function ProductDetailQuestionCard({
   );
 }
 
-function ManualTitlePanel({
+function ChannelTitlePanel({
   canCreatePrompt,
   sourceText,
   candidates,
   candidateSource,
-  selectedTitle,
+  selectedTitles,
   warnings,
   copyState,
   onCreatePrompt,
@@ -1360,20 +1423,24 @@ function ManualTitlePanel({
 }: {
   canCreatePrompt: boolean;
   sourceText: string;
-  candidates: string[];
-  candidateSource: "local" | "openai";
-  selectedTitle: string;
-  warnings: string[];
+  candidates: Record<TitleChannel, string[]>;
+  candidateSource: Record<TitleChannel, "local" | "openai">;
+  selectedTitles: Record<TitleChannel, string>;
+  warnings: Record<TitleChannel, string[]>;
   copyState: ManualCopyState;
   onCreatePrompt: () => void;
   onSourceText: (value: string) => void;
   onApplySource: (value: string) => void;
-  onSelectTitle: (value: string) => void;
+  onSelectTitle: (channel: TitleChannel, value: string) => void;
 }) {
+  const [activeChannel, setActiveChannel] = useState<TitleChannel>("naver");
   const [showSource, setShowSource] = useState(false);
-  const titleTypes = ["키워드 직결", "구체적 상황", "선택 기준", "제품 비교", "부드러운 호기심"];
   const isCopying = copyState === "copying";
   const isCopied = copyState === "copied";
+  const channelLabel = activeChannel === "naver" ? "네이버" : "워드프레스";
+  const channelCandidates = candidates[activeChannel];
+  const selectedTitle = selectedTitles[activeChannel];
+  const channelWarnings = warnings[activeChannel];
 
   return (
     <section id="title-workflow" className="scroll-mt-24 overflow-hidden rounded-[16px] border border-[#d7b2ba] bg-white shadow-[0_10px_32px_rgba(180,35,63,0.06)]">
@@ -1381,9 +1448,9 @@ function ManualTitlePanel({
         <div>
           <div className="flex items-center gap-2">
             <span className="grid size-7 place-items-center rounded-full bg-[#b4233f] text-[12px] font-bold text-white">3</span>
-            <h3 className="text-[16px] font-bold text-[#27272a]">제목을 먼저 고르세요</h3>
+            <h3 className="text-[16px] font-bold text-[#27272a]">채널별 제목을 고르세요</h3>
           </div>
-          <p className="mt-2 text-[12px] leading-5 text-[#6f6f6a]">제품을 고르면 실제 제목 5개가 바로 나옵니다. 원하면 OpenAI 결과로 후보를 교체할 수 있습니다.</p>
+          <p className="mt-2 text-[12px] leading-5 text-[#6f6f6a]">네이버는 검색 순간의 고민을, 워드프레스는 오래 참고할 선택 정보를 약속합니다. 같은 제목을 복사하지 않습니다.</p>
         </div>
         <Button
           type="button"
@@ -1393,22 +1460,38 @@ function ManualTitlePanel({
           disabled={!canCreatePrompt || isCopying}
           onClick={onCreatePrompt}
         >
-          {isCopying ? "복사 중" : isCopied ? "제목 프롬프트 복사 완료" : "OpenAI용 제목 프롬프트 복사"}
+          {isCopying ? "복사 중" : isCopied ? "제목 프롬프트 복사 완료" : "두 채널 제목 프롬프트 복사"}
         </Button>
       </div>
 
-      <div className="grid gap-5 p-4 sm:p-5">
+      <div className="grid min-w-0 grid-cols-1 gap-5 p-4 sm:p-5">
         {!canCreatePrompt ? (
           <p className="rounded-[10px] bg-[#fff8df] px-3 py-2 text-[12px] font-medium text-[#755700]">제품 2개를 먼저 선택하면 제목 프롬프트를 만들 수 있습니다.</p>
         ) : null}
 
-        {!candidates.length || showSource ? (
+        <div className="grid grid-cols-2 rounded-[10px] border border-[#deddd8] bg-[#f1f0ec] p-1">
+          {(["naver", "wordpress"] as const).map((channel) => {
+            const selected = activeChannel === channel;
+            return (
+              <button
+                key={channel}
+                type="button"
+                className={selected ? modeButtonActiveClass : modeButtonClass}
+                onClick={() => setActiveChannel(channel)}
+              >
+                {channel === "naver" ? "네이버 제목" : "워드프레스 제목"}
+              </button>
+            );
+          })}
+        </div>
+
+        {!channelCandidates.length || showSource ? (
           <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_124px]">
-            <Field label="OpenAI 제목 결과 붙여넣기" hint="번호 목록 또는 JSON">
+            <Field label="OpenAI 제목 결과 붙여넣기" hint="네이버·워드프레스 JSON 또는 기존 번호 목록">
               <Textarea
                 value={sourceText}
-                placeholder={"1. 첫 번째 제목\n2. 두 번째 제목\n3. 세 번째 제목"}
-                className="min-h-24 font-mono text-[12px] leading-5"
+                placeholder={'{\n  "naver": { "title_candidates": ["..."], "selected_title": "..." },\n  "wordpress": { "title_candidates": ["..."], "selected_title": "..." }\n}'}
+                className="min-h-28 font-mono text-[12px] leading-5"
                 onChange={(event) => onSourceText(event.target.value)}
                 onPaste={(event) => {
                   const target = event.currentTarget;
@@ -1433,69 +1516,63 @@ function ManualTitlePanel({
         ) : (
           <div className="flex items-center justify-between gap-3 rounded-[10px] bg-[#f7f6f3] px-3 py-2">
             <span className="text-[12px] font-medium text-[#5f5f5a]">
-              {candidateSource === "openai" ? `OpenAI 제목 후보 ${candidates.length}개를 불러왔습니다.` : `기본 제목 후보 ${candidates.length}개가 준비되었습니다.`}
+              {candidateSource[activeChannel] === "openai" ? `OpenAI ${channelLabel} 제목 후보 ${channelCandidates.length}개` : `기본 ${channelLabel} 제목 후보 ${channelCandidates.length}개`}
             </span>
             <Button type="button" variant="ghost" className="h-8 shrink-0 px-2 text-[11px]" onClick={() => setShowSource(true)}>OpenAI 결과 붙여넣기</Button>
           </div>
         )}
 
-        {candidates.length ? (
-          <div className="grid gap-2">
-            <div className="flex items-center justify-between gap-3">
-              <h4 className="text-[13px] font-bold text-[#27272a]">제목 후보</h4>
-              <span className="text-[11px] text-[#6f6f6a]">{candidateSource === "openai" ? "OpenAI" : "기본"} {candidates.length}개 · 하나를 선택하세요</span>
-            </div>
-            <div className="divide-y divide-[#ecebe7] border-y border-[#ecebe7]">
-              {candidates.map((title, index) => {
-                const selected = selectedTitle === title;
-                return (
-                  <button
-                    key={`${title}-${index}`}
-                    type="button"
-                    aria-pressed={selected}
-                    className={[
-                      "flex w-full items-start gap-3 px-2 py-3 text-left transition-colors sm:px-3",
-                      selected ? "bg-[#fff1f3]" : "hover:bg-[#fafaf8]",
-                    ].join(" ")}
-                    onClick={() => onSelectTitle(title)}
-                  >
-                    <span className={[
-                      "mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-[11px] font-bold",
-                      selected ? "bg-[#b4233f] text-white" : "bg-[#ecebe7] text-[#62625d]",
-                    ].join(" ")}>{index + 1}</span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-[11px] font-semibold text-[#8a4b5a]">{titleTypes[index] ?? "제목 후보"}</span>
-                      <strong className="mt-1 block text-[13px] leading-5 text-[#27272a]">{title}</strong>
-                    </span>
-                    {selected ? <CheckCircle2 className="mt-1 size-4 shrink-0 text-[#b4233f]" /> : null}
-                  </button>
-                );
-              })}
-            </div>
+        {channelCandidates.length ? (
+          <div className="divide-y divide-[#ecebe7] border-y border-[#ecebe7]">
+            {channelCandidates.map((title, index) => {
+              const selected = selectedTitle === title;
+              return (
+                <button
+                  key={`${activeChannel}-${title}-${index}`}
+                  type="button"
+                  aria-pressed={selected}
+                  className={[
+                    "flex w-full cursor-pointer items-start gap-3 px-2 py-3 text-left transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#b4233f] sm:px-3",
+                    selected ? "bg-[#fff1f3]" : "hover:bg-[#fafaf8]",
+                  ].join(" ")}
+                  onClick={() => onSelectTitle(activeChannel, title)}
+                >
+                  <span className={[
+                    "mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-[11px] font-bold",
+                    selected ? "bg-[#b4233f] text-white" : "bg-[#ecebe7] text-[#62625d]",
+                  ].join(" ")}>{index + 1}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[11px] font-semibold text-[#8a4b5a]">{titleCandidateLabels[activeChannel][index] ?? "제목 후보"}</span>
+                    <strong className="mt-1 block text-[13px] leading-5 text-[#27272a]">{title}</strong>
+                  </span>
+                  {selected ? <CheckCircle2 className="mt-1 size-4 shrink-0 text-[#b4233f]" /> : null}
+                </button>
+              );
+            })}
           </div>
         ) : null}
 
-        <Field label="최종 네이버 제목" hint={`${selectedTitle.length}자 · 직접 수정 가능`}>
+        <Field label={`최종 ${channelLabel} 제목`} hint={`${selectedTitle.length}자 · 직접 수정 가능`}>
           <Input
             value={selectedTitle}
             placeholder="후보를 선택하거나 제목을 직접 입력해 주세요."
-            onChange={(event) => onSelectTitle(event.target.value)}
+            onChange={(event) => onSelectTitle(activeChannel, event.target.value)}
           />
         </Field>
 
         <div aria-live="polite" className="min-h-6">
           {selectedTitle.trim() ? (
-            warnings.length ? (
+            channelWarnings.length ? (
               <div className="grid gap-1.5">
-                {warnings.map((warning) => (
+                {channelWarnings.map((warning) => (
                   <p key={warning} className="rounded-[9px] bg-[#fff8df] px-3 py-2 text-[12px] leading-5 text-[#755700]">{warning}</p>
                 ))}
               </div>
             ) : (
-              <p className="rounded-[9px] bg-[#edf8f0] px-3 py-2 text-[12px] font-medium text-[#236b44]">이 제목을 네이버 본문에 그대로 고정합니다.</p>
+              <p className="rounded-[9px] bg-[#edf8f0] px-3 py-2 text-[12px] font-medium text-[#236b44]">이 제목을 {channelLabel} 본문에 그대로 고정합니다.</p>
             )
           ) : (
-            <p className="text-[12px] text-[#6f6f6a]">제목을 선택해야 네이버 본문 프롬프트를 만들 수 있습니다.</p>
+            <p className="text-[12px] text-[#6f6f6a]">{channelLabel} 제목을 선택해야 해당 채널의 본문 프롬프트를 만들 수 있습니다.</p>
           )}
         </div>
       </div>
@@ -1535,7 +1612,7 @@ function SemiManualPanel({
         </span>
         <ChevronDown aria-hidden className="details-chevron size-4 shrink-0 text-[#6f6f6a]" />
       </summary>
-      <div className="grid gap-3 border-t border-[#ecebe7] p-4 sm:p-5">
+      <div className="grid min-w-0 grid-cols-1 gap-3 border-t border-[#ecebe7] p-4 sm:p-5">
         <div className="grid gap-2 sm:grid-cols-2">
           {(["naver", "wordpress"] as const).map((kind) => (
             <ManualPromptButton
@@ -1696,15 +1773,6 @@ function WorkflowButton({
 
 function buildTitleCandidates(input: BlogDraftInput, output: BlogDraftOutput) {
   return buildLocalTitleCandidates(input, output.selected_products);
-}
-
-function compactSituationForTitle(input: BlogDraftInput) {
-  const fallback = input.topic || input.main_keyword || "선물 준비";
-  return (input.situation || fallback)
-    .replace(/을 소개하는 글|를 소개하는 글|하는 글/g, "")
-    .replace(/[.。!?]+$/g, "")
-    .trim()
-    .slice(0, 42);
 }
 
 function buildFaq(input: BlogDraftInput, output: BlogDraftOutput) {
@@ -1947,7 +2015,8 @@ ${commonData}
 
 중요:
 - 네이버 본문 객체는 만들지 않는다.
-- 제목 후보 5개와 최종 제목은 네이버 블로그 버전과 동일한 부드러운 질문형 규칙을 따른다.
+${buildLockedWordPressTitleInstructions(selectedTitle, titleCandidates.length)}
+- 제목은 네이버 제목을 동의어로 바꾸지 않은 정보형 제목으로 이미 확정되어 있다. 모든 제목에 물음표를 붙이지 않는다.
 - sections는 아래 wordpress_section_headings를 정확히 같은 순서와 문장으로 사용한다.
 - 본문 문장은 네이버 글을 복사하지 말고 워드프레스용 사장님 정보형으로 새로 쓴다.
 - 제품은 아래 selected_products 2개만 다룬다.
@@ -1964,8 +2033,6 @@ ${JSON.stringify(wordpressSectionHeadings, null, 2)}
 
 반드시 아래 워드프레스 전용 JSON 구조로 출력:
 {
-  "title_candidates": ["질문형 제목 1", "질문형 제목 2", "질문형 제목 3", "질문형 제목 4", "질문형 제목 5"],
-  "selected_title": "질문형 최종 제목",
   "slug": "english-lowercase-slug",
   "meta_description": "검색 결과에 보일 설명",
   "excerpt": "목록에 보일 짧은 요약",
@@ -1993,7 +2060,7 @@ ${JSON.stringify(wordpressSectionHeadings, null, 2)}
     { "position": "${selectedProducts[0]?.product_name ?? "첫 번째 제품"} 소개 뒤", "image_type": "제품 디테일", "caption": "사진 설명", "alt_text": "이미지 ALT" },
     { "position": "${selectedProducts[1]?.product_name ?? "두 번째 제품"} 소개 뒤", "image_type": "포장 사진", "caption": "사진 설명", "alt_text": "이미지 ALT" }
   ],
-  "markdown_for_wordpress": "# 질문형 최종 제목\\n\\n## ${wordpressSectionHeadings[0]}\\n\\n본문"
+  "markdown_for_wordpress": "# ${selectedTitle}\\n\\n## ${wordpressSectionHeadings[0]}\\n\\n본문"
 }`;
 }
 
@@ -2206,8 +2273,15 @@ function buildDefaultWordPressOutput(
   const [first, second] = output.selected_products;
   const firstName = first?.product_name ?? "첫 번째 쿠키";
   const secondName = second?.product_name ?? "두 번째 쿠키";
-  const titleCandidates = buildWordPressTitleCandidates(input, output);
-  const selectedTitle = titleCandidates.find((title) => title !== output.selected_title) ?? titleCandidates[0];
+  const titles = normalizeTitleResult({
+    channel: "wordpress",
+    candidates: buildLocalTitleCandidates(input, output.selected_products, "wordpress"),
+    input,
+    selectedProducts: output.selected_products,
+    avoidTitle: output.selected_title,
+  });
+  const titleCandidates = titles.title_candidates;
+  const selectedTitle = titles.selected_title;
   const sectionHeadings = buildWordPressSectionHeadings(input, output.selected_products);
   const sections = [
     {
@@ -2317,17 +2391,17 @@ function buildDefaultWordPressOutput(
 function normalizeWordPressDraft(rawWordPress: unknown, input: BlogDraftInput, naverOutput: BlogDraftOutput): WordPressDraftOutput {
   const raw = rawWordPress && typeof rawWordPress === "object" ? rawWordPress as Record<string, unknown> : {};
   const fallback = buildDefaultWordPressOutput(input, naverOutput);
-  const titleCandidates = normalizeStringArray(raw.title_candidates, 5, fallback.title_candidates)
-    .map(ensureQuestionTitle)
-    .filter((title) => title !== naverOutput.selected_title)
-    .slice(0, 5);
-  const selectedTitle =
-    typeof raw.selected_title === "string" && raw.selected_title !== naverOutput.selected_title
-      ? ensureQuestionTitle(raw.selected_title)
-      : titleCandidates[0];
+  const titles = normalizeTitleResult({
+    channel: "wordpress",
+    candidates: normalizeStringArray(raw.title_candidates, 5, fallback.title_candidates),
+    selectedTitle: typeof raw.selected_title === "string" ? raw.selected_title : undefined,
+    input,
+    selectedProducts: naverOutput.selected_products,
+    avoidTitle: naverOutput.selected_title,
+  });
   const wordpress: WordPressDraftOutput = {
-    title_candidates: titleCandidates.length === 5 ? titleCandidates : fallback.title_candidates,
-    selected_title: selectedTitle,
+    title_candidates: titles.title_candidates,
+    selected_title: titles.selected_title,
     slug: typeof raw.slug === "string" && raw.slug ? raw.slug : fallback.slug,
     meta_description: typeof raw.meta_description === "string" && raw.meta_description ? raw.meta_description : fallback.meta_description,
     excerpt: typeof raw.excerpt === "string" && raw.excerpt ? raw.excerpt : fallback.excerpt,
@@ -2344,29 +2418,6 @@ function normalizeWordPressDraft(rawWordPress: unknown, input: BlogDraftInput, n
     ...wordpress,
     markdown_for_wordpress: formatMarkdownForWordPress(wordpress),
   };
-}
-
-function buildWordPressTitleCandidates(
-  input: BlogDraftInput,
-  output: Pick<BlogDraftOutput, "selected_title" | "selected_products">,
-) {
-  const keyword = input.main_keyword || input.topic || "쿠키 선물";
-  const [first, second] = output.selected_products;
-  const situation = compactSituationForTitle(input);
-  const candidates = [
-    `${keyword}, 수량과 문구를 먼저 보면 어떨까요?`,
-    `${keyword} 쿠키, 너무 광고 같지 않게 준비하려면 좋을까요?`,
-    `${keyword}, 포장과 전달 방식을 어디까지 확인하면 좋을까요?`,
-    `${keyword}, ${situation}라면 어떤 기준으로 고르면 좋을까요?`,
-    `${keyword}, ${first?.product_name ?? "쿠키"}와 ${second?.product_name ?? "쿠키"} 중 어떤 구성이 편할까요?`,
-    `${keyword}, 워드프레스에는 어떤 기준으로 정리하면 좋을까요?`,
-  ].map(ensureQuestionTitle).filter((title) => title !== output.selected_title);
-  return candidates.slice(0, 5);
-}
-
-function ensureQuestionTitle(title: string) {
-  const trimmed = title.trim().replace(/[.!。]+$/g, "");
-  return trimmed.endsWith("?") ? trimmed : `${trimmed}?`;
 }
 
 function normalizeWordPressSections(
@@ -2718,11 +2769,12 @@ function EditorView({
 
   function refreshTitles() {
     const titleCandidates = buildTitleCandidates(input, currentOutput);
-    onOutput({
+    const next = {
       ...currentOutput,
       title_candidates: titleCandidates,
       selected_title: titleCandidates[0],
-    });
+    };
+    onOutput({ ...next, plain_text_for_naver: formatPlainTextForNaver(next) });
   }
 
   function refreshFaq() {
@@ -2778,9 +2830,14 @@ function EditorView({
       {activeEditorTab === "naver" ? (
         <>
       <TitleSelector
+        channel="naver"
+        mainKeyword={input.main_keyword}
         candidates={currentOutput.title_candidates}
         selectedTitle={currentOutput.selected_title}
-        onSelect={(title) => onOutput({ ...currentOutput, selected_title: title })}
+        onSelect={(title) => {
+          const next = { ...currentOutput, selected_title: title };
+          onOutput({ ...next, plain_text_for_naver: formatPlainTextForNaver(next) });
+        }}
         onRefresh={refreshTitles}
       />
       <section className="rounded-md border border-[#e5ddd2] bg-white p-3">
@@ -2892,16 +2949,18 @@ function EditorView({
       <HashtagBox hashtags={currentOutput.hashtags} onChange={(hashtags) => onOutput({ ...currentOutput, hashtags })} />
         </>
       ) : (
-        <WordPressEditor output={currentOutput} onOutput={onOutput} />
+        <WordPressEditor input={input} output={currentOutput} onOutput={onOutput} />
       )}
     </div>
   );
 }
 
 function WordPressEditor({
+  input,
   output,
   onOutput,
 }: {
+  input: BlogDraftInput;
   output: BlogDraftOutput;
   onOutput: (output: BlogDraftOutput) => void;
 }) {
@@ -2921,8 +2980,35 @@ function WordPressEditor({
     });
   }
 
+  function updateWordPressTitle(selectedTitle: string) {
+    const next = { ...wordpress, selected_title: selectedTitle };
+    updateWordPress({ ...next, markdown_for_wordpress: formatMarkdownForWordPress(next) });
+  }
+
+  function refreshWordPressTitles() {
+    const titleCandidates = buildLocalTitleCandidates(input, output.selected_products, "wordpress");
+    updateWordPress({
+      ...wordpress,
+      title_candidates: titleCandidates,
+      selected_title: titleCandidates[0] ?? wordpress.selected_title,
+      markdown_for_wordpress: formatMarkdownForWordPress({
+        ...wordpress,
+        title_candidates: titleCandidates,
+        selected_title: titleCandidates[0] ?? wordpress.selected_title,
+      }),
+    });
+  }
+
   return (
     <div className="grid gap-3">
+      <TitleSelector
+        channel="wordpress"
+        mainKeyword={input.main_keyword}
+        candidates={wordpress.title_candidates}
+        selectedTitle={wordpress.selected_title}
+        onSelect={updateWordPressTitle}
+        onRefresh={refreshWordPressTitles}
+      />
       <section className="rounded-md border border-[#e5ddd2] bg-white p-3">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -2935,7 +3021,7 @@ function WordPressEditor({
           <Field label="워드프레스 제목" hint={`${wordpress.selected_title.length}자`}>
             <Input
               value={wordpress.selected_title}
-              onChange={(event) => updateWordPress({ ...wordpress, selected_title: event.target.value })}
+              onChange={(event) => updateWordPressTitle(event.target.value)}
             />
           </Field>
           <Field label="Slug">

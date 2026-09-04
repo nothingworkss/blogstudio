@@ -3,13 +3,17 @@ import type { BlogDraftInput } from "@/types/blog";
 import type { ProductRecommendation } from "@/types/product";
 import {
   applyLockedNaverTitle,
+  applyLockedWordPressTitle,
   buildLocalTitleCandidates,
   buildLockedNaverTitleInstructions,
+  buildLockedWordPressTitleInstructions,
   buildManualTitlePrompt,
   buildTitleContextFingerprint,
+  getCrossChannelTitleWarnings,
   getTitleWarnings,
   isManualTitlePromptText,
   parseTitleCandidates,
+  parseTitlePackage,
 } from "@/lib/title-workflow";
 
 const input: BlogDraftInput = {
@@ -76,6 +80,23 @@ describe("semi-manual title workflow", () => {
     expect(parseTitleCandidates("1. 중복 제목\n2. 중복 제목\n3. 다른 제목")).toEqual(["중복 제목", "다른 제목"]);
   });
 
+  it("parses separate Naver and WordPress title results from one manual answer", () => {
+    const parsed = parseTitlePackage(`{
+      "naver": {
+        "title_candidates": ["퇴사 답례품, 마지막 출근날 먼저 챙길 것"],
+        "selected_title": "퇴사 답례품, 마지막 출근날 먼저 챙길 것"
+      },
+      "wordpress": {
+        "title_candidates": ["퇴사 답례품 준비 전 수량과 문구를 정리하는 순서"],
+        "selected_title": "퇴사 답례품 준비 전 수량과 문구를 정리하는 순서"
+      }
+    }`);
+
+    expect(parsed.naver.selectedTitle).toContain("퇴사 답례품");
+    expect(parsed.wordpress.selectedTitle).toContain("수량과 문구");
+    expect(parsed.naver.selectedTitle).not.toBe(parsed.wordpress.selectedTitle);
+  });
+
   it("rejects the copied prompt skeleton instead of treating style labels as titles", () => {
     const copiedPrompt = `후보 구성:
 1. 키워드 직결형
@@ -99,28 +120,35 @@ describe("semi-manual title workflow", () => {
     expect(parseTitleCandidates("1. 키워드 직결형\n2. 구체적 상황형\n3. 선택 기준형")).toEqual([]);
   });
 
-  it("builds a compact mixed-style title prompt without an app API call", () => {
+  it("builds channel-specific title prompts without an app API call", () => {
     const prompt = buildManualTitlePrompt({ input, selectedProducts });
 
     expect(prompt).toContain("정확히 5개");
-    expect(prompt).toContain("키워드 직결형");
-    expect(prompt).toContain("구체적 상황형");
-    expect(prompt).toContain("질문형은 최대 1개");
-    expect(prompt).toContain("메인 키워드는 후보마다 최대 1회");
+    expect(prompt).toContain("네이버 제목 계약");
+    expect(prompt).toContain("워드프레스 제목 계약");
+    expect(prompt).toContain("모든 제목에 물음표를 붙이지 않는다");
+    expect(prompt).toContain("메인 키워드는 후보마다 정확히 1회");
     expect(prompt).toContain("BEST");
-    expect(prompt).toContain("총정리");
     expect(prompt).toContain("22~40자");
+    expect(prompt).toContain("26~48자");
     expect(prompt).toContain("커스텀형 브라우니쿠키");
     expect(prompt).toContain("행운쿠키");
-    expect(prompt.length).toBeLessThan(2_500);
+    expect(prompt).toContain('"naver"');
+    expect(prompt).toContain('"wordpress"');
+    expect(prompt.length).toBeLessThan(4_500);
   });
 
-  it("creates five local fallbacks with at most one question title", () => {
-    const titles = buildLocalTitleCandidates(input, selectedProducts);
+  it("creates distinct local fallbacks for both channels without forcing questions", () => {
+    const titles = buildLocalTitleCandidates(input, selectedProducts, "naver");
+    const wordpressTitles = buildLocalTitleCandidates(input, selectedProducts, "wordpress");
 
     expect(titles).toHaveLength(5);
     expect(titles.every((title) => title.includes(input.main_keyword))).toBe(true);
     expect(titles.filter((title) => title.endsWith("?")).length).toBeLessThanOrEqual(1);
+    expect(wordpressTitles).toHaveLength(5);
+    expect(wordpressTitles.every((title) => title.includes(input.main_keyword))).toBe(true);
+    expect(wordpressTitles.filter((title) => title.endsWith("?")).length).toBeLessThanOrEqual(1);
+    expect(wordpressTitles).not.toEqual(titles);
   });
 
   it("locks the user's title over a different pasted model title", () => {
@@ -151,6 +179,34 @@ describe("semi-manual title workflow", () => {
     expect(instructions).toContain("한 글자도 바꾸지 않는다");
     expect(instructions).toContain("제목 후보 5개를 다시 출력하지 않는다");
     expect(instructions).toContain("title_candidates, selected_title");
+
+    const wordpressInstructions = buildLockedWordPressTitleInstructions("워드프레스용 제목", 5);
+    expect(wordpressInstructions).toContain('selected_title은 "워드프레스용 제목"');
+    expect(wordpressInstructions).toContain("제목을 새로 만들거나 고르지 않는다");
+  });
+
+  it("locks the selected WordPress title without converting it into a question", () => {
+    const locked = applyLockedWordPressTitle(
+      { title_candidates: ["모델 제목"], selected_title: "모델 제목" },
+      {
+        selectedTitle: "퇴사 답례품 준비 전 수량과 문구를 정리하는 순서",
+        titleCandidates: ["퇴사 답례품 준비 전 수량과 문구를 정리하는 순서"],
+        input,
+        selectedProducts,
+        naverTitle: "퇴사 답례품, 마지막 출근날 먼저 챙길 것",
+      },
+    );
+
+    expect(locked.selected_title).toBe("퇴사 답례품 준비 전 수량과 문구를 정리하는 순서");
+    expect(locked.selected_title.endsWith("?")).toBe(false);
+    expect(locked.selected_title).not.toBe("퇴사 답례품, 마지막 출근날 먼저 챙길 것");
+  });
+
+  it("warns when a WordPress title is copied from the Naver channel", () => {
+    const copied = "퇴사 답례품, 마지막 출근날 먼저 챙길 것";
+    expect(getCrossChannelTitleWarnings(copied, copied)).toEqual([
+      expect.stringContaining("네이버와 워드프레스 제목이 같습니다."),
+    ]);
   });
 
   it("invalidates titles for title-context changes but ignores CTA changes", () => {

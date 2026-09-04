@@ -9,7 +9,7 @@ import {
 } from "@/lib/product/editorial";
 import { formatMarkdownForWordPress, formatPlainTextForNaver } from "@/lib/utils/copyFormat";
 import { applySeoSectionHeadings, buildWordPressSectionHeadings } from "@/lib/utils/seoHeadings";
-import { buildLocalTitleCandidates } from "@/lib/title-workflow";
+import { buildLocalTitleCandidates, getTitleWarnings, normalizeTitleResult } from "@/lib/title-workflow";
 import { selectProductsByScore } from "./selectProducts";
 
 export function fallbackObserveImages(imageUrls: string[]): ImageObservation[] {
@@ -76,11 +76,17 @@ export function fallbackGenerateBlog(params: {
   const cta = input.cta || params.brand.default_cta;
   const referencePattern = referencePatternPayload(input.reference_style);
   const titleObject = withObjectParticle(titleBase);
-  const titleCandidates = buildLocalTitleCandidates(input, selectedProducts);
+  const naverTitles = normalizeTitleResult({
+    channel: "naver",
+    candidates: buildLocalTitleCandidates(input, selectedProducts, "naver"),
+    input,
+    selectedProducts,
+  });
+  const titleCandidates = naverTitles.title_candidates;
 
   const outputWithoutPlain = {
     title_candidates: titleCandidates,
-    selected_title: titleCandidates[0],
+    selected_title: naverTitles.selected_title,
     search_intent: `${titleBase}를 찾는 사람은 부담스럽지 않으면서도 상황에 맞는 선물과 주문 전 확인할 내용을 함께 알고 싶어합니다.`,
     selected_products: selectedProducts,
     sections: [
@@ -271,11 +277,15 @@ function buildFallbackWordPressOutput({
 }): WordPressDraftOutput {
   const keyword = input.main_keyword || input.topic;
   const sectionHeadings = buildWordPressSectionHeadings(input, [first, second]);
-  const titleCandidates = [
-    ...buildWordPressTitleCandidates(input, first.product_name, second.product_name).filter((title) => title !== naverTitle),
-    `${keyword} 준비할 때 사장이 먼저 보는 기준`,
-  ].map(ensureQuestionTitle).slice(0, 5);
-  const selectedTitle = titleCandidates[0] ?? `${keyword} 고르는 기준과 쿠키 구성 정리`;
+  const titles = normalizeTitleResult({
+    channel: "wordpress",
+    candidates: buildLocalTitleCandidates(input, [first, second], "wordpress"),
+    input,
+    selectedProducts: [first, second],
+    avoidTitle: naverTitle,
+  });
+  const titleCandidates = titles.title_candidates;
+  const selectedTitle = titles.selected_title;
   const sections = [
     {
       id: "wp-intro",
@@ -408,32 +418,6 @@ function buildFallbackWordPressOutput({
   return wordpress;
 }
 
-function buildWordPressTitleCandidates(input: BlogDraftInput, firstProduct: string, secondProduct: string) {
-  const keyword = input.main_keyword || input.topic;
-  const situation = compactSituationForTitle(input);
-  return [
-    `${keyword}, 수량과 문구를 먼저 보면 어떨까요?`,
-    `${keyword} 쿠키, 너무 광고 같지 않게 준비하려면 좋을까요?`,
-    `${keyword}, 포장과 전달 방식을 어디까지 확인하면 좋을까요?`,
-    `${keyword}, ${situation}라면 어떤 기준으로 고르면 좋을까요?`,
-    `${keyword}, ${firstProduct}와 ${secondProduct} 중 어떤 구성이 편할까요?`,
-  ];
-}
-
-function ensureQuestionTitle(title: string) {
-  const trimmed = title.trim().replace(/[.!。]+$/g, "");
-  return trimmed.endsWith("?") ? trimmed : `${trimmed}?`;
-}
-
-function compactSituationForTitle(input: BlogDraftInput) {
-  const fallback = input.topic || input.main_keyword || "선물 준비";
-  return (input.situation || fallback)
-    .replace(/을 소개하는 글|를 소개하는 글|하는 글/g, "")
-    .replace(/[.。!?]+$/g, "")
-    .trim()
-    .slice(0, 42);
-}
-
 function slugifyKoreanAware(value: string) {
   const mapped = value
     .toLowerCase()
@@ -494,6 +478,8 @@ export function fallbackCheckDraft(output: BlogDraftOutput, forbiddenWords: stri
     (word) => word && text.includes(word),
   );
   const longParagraph = text.split(/\n\n/).some((paragraph) => paragraph.length > 360);
+  const naverTitleWarnings = getTitleWarnings(output.selected_title, output.wordpress.focus_keyword, "naver");
+  const wordpressTitleWarnings = getTitleWarnings(output.wordpress.selected_title, output.wordpress.focus_keyword, "wordpress");
 
   return {
     warnings: [
@@ -507,6 +493,14 @@ export function fallbackCheckDraft(output: BlogDraftOutput, forbiddenWords: stri
       ...(longParagraph
         ? [{ level: "info" as const, message: "모바일에서는 문단을 조금 더 짧게 나누면 좋아요." }]
         : []),
+      ...naverTitleWarnings.map((message) => ({
+        level: "warning" as const,
+        message: `네이버 제목: ${message}`,
+      })),
+      ...wordpressTitleWarnings.map((message) => ({
+        level: "warning" as const,
+        message: `워드프레스 제목: ${message}`,
+      })),
       ...safetyWarnings.map((message) => ({
         level: "warning" as const,
         message,
@@ -526,6 +520,7 @@ export function fallbackCheckDraft(output: BlogDraftOutput, forbiddenWords: stri
     suggestions: [
       "맛, 향, 고객 반응은 사진만 보고 단정하지 않았는지 확인하세요.",
       "메인 키워드가 제목과 도입부에 자연스럽게 들어갔는지 확인하세요.",
+      "네이버는 검색 순간의 현실 고민, 워드프레스는 오래 참고할 선택 정보를 제목에서 약속하는지 확인하세요.",
       "예제 글의 원문 문장이나 다른 브랜드 흔적은 구조 분석용으로만 쓰고 본문에서는 제거하세요.",
       "이미지 가이드는 대표컷, 디테일컷, 포장컷, 수량컷이 분리되었는지 확인하세요.",
     ],

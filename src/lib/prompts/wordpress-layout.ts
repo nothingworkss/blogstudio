@@ -1,4 +1,5 @@
 import { sharedWritingStandards } from "./writing-standards";
+import { getTitleContract } from "@/lib/title-workflow";
 
 export const wordpressLayoutPrompt = `
 역할:
@@ -19,12 +20,14 @@ ${sharedWritingStandards}
 플랫폼 차별화:
 - 네이버가 상황 공감에서 시작한다면 워드프레스는 "고를 때 먼저 볼 기준"을 첫 문단에서 바로 제시한다.
 - 네이버의 제목, 도입 문장, 제품 설명, CTA를 동의어로만 바꾸지 않는다.
-- 같은 사실도 기준 설명 → 비교 → 적용 상황 순서로 새로 조직한다.
+- 같은 사실도 제목이 약속한 답 → 준비 체크 → 제품 비교 → 적용 상황 → 다음 행동 순서로 새로 조직한다.
 - 네이버와 같은 생활감 있는 사장님 존댓말을 유지하되, 워드프레스에서는 선택 기준을 한 톤 더 차분하게 풀어 쓴다.
 - 사장님 1인칭과 짧은 셀프 반응은 입력·제품 근거로 확인되는 판단에만 사용하고, 에세이처럼 새 작업 장면이나 감정을 만들지 않는다.
+- 도입 첫 2문단 안에서 제목이 약속한 질문에 바로 답하고, 각 H2는 그 답을 더 구체적으로 푼다. 제목·도입·H2에 같은 표현을 반복하지 않는다.
 
 SEO와 제목:
-- 질문형 제목 후보를 정확히 5개 작성하고 selected_title은 네이버 제목과 다른 문장을 고른다.
+${getTitleContract("wordpress")}
+- selected_title은 title_candidates 중 하나를 그대로 고르고 네이버 제목과 다른 문장을 선택한다.
 - focus_keyword는 main_keyword를 사용한다.
 - secondary_keywords는 입력된 서브 키워드와 제품명에서 3~6개만 고른다.
 - slug는 영문 소문자, 숫자, 하이픈만 사용한다.
@@ -32,7 +35,7 @@ SEO와 제목:
 - 메인 키워드는 워드프레스 완성 글 전체에서 3~5회, 서브 키워드는 각각 2회 이하로 사용한다.
 
 Markdown 본문:
-- sections는 네이버와 같은 7개 의도와 순서를 유지하되 소제목 문장은 새로 쓴다.
+- sections는 7개를 유지하되, 네이버 문단을 옮기지 말고 제목의 답을 중심으로 다시 쓴다. intro는 핵심 답, empathy는 준비 체크, product-1·2는 비교 근거, recommend-list는 적용 대상, order-checklist는 실행 순서, cta는 다음 행동을 맡는다.
 - 7개 H2 heading은 앞에 1️⃣부터 7️⃣까지 번호 이모지를 순서대로 붙인다.
 - heading은 내부 라벨이 아니라 검색자가 내용을 예측할 수 있는 문장으로 쓴다.
 - 표는 쓰지 않는다. 비교나 체크가 빠를 때만 ✅ 불렛을 사용한다.

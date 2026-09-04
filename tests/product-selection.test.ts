@@ -93,6 +93,8 @@ describe("product selection scoring", () => {
     expect(output.wordpress.title_candidates).toHaveLength(5);
     expect(output.wordpress.selected_title).not.toBe(output.selected_title);
     expect(output.wordpress.title_candidates.every((title) => title.includes(draftInput.main_keyword))).toBe(true);
+    expect(output.wordpress.title_candidates.filter((title) => title.endsWith("?")).length).toBeLessThanOrEqual(1);
+    expect(output.wordpress.selected_title.endsWith("?")).toBe(false);
     expect(output.wordpress.sections.map((section) => section.heading)).not.toEqual(output.sections.map((section) => section.heading));
     expect(output.wordpress.sections.map((section) => section.heading)).toEqual(
       expect.arrayContaining([expect.stringMatching(/^1️⃣ /), expect.stringMatching(/^7️⃣ /)]),
@@ -177,7 +179,7 @@ describe("product selection scoring", () => {
         },
         {
           product_name: "수제쿠키 패키지",
-          reason: "구성과 포장 인상을 보여주는 기준",
+          reason: "구성 수량과 포장 방식을 보는 기준",
           angle: "선물처럼 보이는 답례품",
           main_points: ["구성", "포장", "수량"],
           caution: "구성 확인 필요",
@@ -205,6 +207,8 @@ describe("product selection scoring", () => {
       .join("\n");
 
     expect(productText).not.toContain("퇴사");
+    expect(productText).not.toContain("포장 인상");
+    expect(output.sections.some((section) => section.heading === "수제쿠키 패키지, 포장을 보는 기준")).toBe(true);
     expect(productText).toContain(draftInput.main_keyword);
     expect(output.sections[0]?.body).toContain(draftInput.main_keyword);
     expect(output.sections[0]?.heading).not.toContain(draftInput.main_keyword);
@@ -279,5 +283,30 @@ describe("product selection scoring", () => {
 
     expect(check.unsupported_claim_found).toBe(true);
     expect(check.warnings.some((warning) => warning.message.includes("후기/반응"))).toBe(true);
+  });
+
+  it("quality check treats weak channel titles as warnings instead of blocking the draft", () => {
+    const draftInput = input({
+      topic: "퇴사 답례품",
+      main_keyword: "퇴사 답례품",
+    });
+    const selectedProducts = fallbackSelectProducts(draftInput, seedProducts);
+    const output = fallbackGenerateBlog({
+      input: draftInput,
+      brand: seedBrand,
+      selectedProducts,
+      observations: [],
+    });
+    const check = fallbackCheckDraft({
+      ...output,
+      selected_title: "BEST 퇴사 답례품 퇴사 답례품 정리",
+      wordpress: {
+        ...output.wordpress,
+        selected_title: "퇴사 답례품?",
+      },
+    }, seedBrand.forbidden_words);
+
+    expect(check.warnings.some((warning) => warning.message.startsWith("네이버 제목:"))).toBe(true);
+    expect(check.warnings.some((warning) => warning.message.startsWith("워드프레스 제목:"))).toBe(true);
   });
 });

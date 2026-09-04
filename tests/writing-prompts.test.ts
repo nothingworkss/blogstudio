@@ -21,12 +21,14 @@ describe("writing prompt contracts", () => {
     expect(blogLayoutPrompt).toContain("최종 제목 1회, 도입 본문 1회, 해시태그 1회");
   });
 
-  it("uses current mixed title shapes instead of forcing every title into a question", () => {
-    expect(blogLayoutPrompt).toContain("키워드 직결형");
-    expect(blogLayoutPrompt).toContain("질문형은 최대 1개");
+  it("uses platform-specific mixed title shapes instead of forcing every title into a question", () => {
+    expect(blogLayoutPrompt).toContain("검색 의도 직결");
+    expect(blogLayoutPrompt).toContain("질문형은 5개 중 최대 1개");
     expect(blogLayoutPrompt).toContain("22~40자");
-    expect(blogLayoutPrompt).toContain("BEST, 완벽, 총정리, 무조건");
+    expect(blogLayoutPrompt).toContain("제품명·키워드를 나열");
     expect(blogLayoutPrompt).not.toContain("모두 메인 키워드를 자연스럽게 포함한 부드러운 질문형");
+    expect(wordpressLayoutPrompt).toContain("모든 제목에 물음표를 붙이지 않는다");
+    expect(wordpressLayoutPrompt).toContain("26~48자");
   });
 
   it("does not repeat the already-completed product-selection matrix", () => {
@@ -54,6 +56,8 @@ describe("writing prompt contracts", () => {
     expect(wordpressLayoutPrompt).toContain("번호 이모지");
     expect(wordpressLayoutPrompt).toContain("<mark");
     expect(wordpressLayoutPrompt).toContain("해시태그를 본문에 넣지 않는다");
+    expect(wordpressLayoutPrompt).toContain("제목이 약속한 답");
+    expect(wordpressLayoutPrompt).toContain("제목·도입·H2에 같은 표현을 반복하지 않는다");
   });
 
   it("keeps section regeneration inside the same evidence and keyword rules", () => {

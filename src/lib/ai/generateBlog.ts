@@ -9,6 +9,7 @@ import { referencePatternPayload } from "@/lib/reference/blog-patterns";
 import { applyEditorialProductSections } from "@/lib/product/editorial";
 import { formatMarkdownForWordPress, formatPlainTextForNaver, normalizeCheckBullets } from "@/lib/utils/copyFormat";
 import { applySeoSectionHeadings } from "@/lib/utils/seoHeadings";
+import { normalizeTitleResult } from "@/lib/title-workflow";
 import { fallbackGenerateBlog } from "./fallbacks";
 import { runStructuredResponse } from "./openai";
 
@@ -34,8 +35,17 @@ export async function generateBlog(params: {
     },
   }).catch(() => null);
 
+  const generatedNaver = naverResult ?? fallbackOutput;
+  const naverTitles = normalizeTitleResult({
+    channel: "naver",
+    candidates: generatedNaver.title_candidates,
+    selectedTitle: generatedNaver.selected_title,
+    input: params.input,
+    selectedProducts: params.selectedProducts,
+  });
   const naverBase: BlogDraftOutput = {
-    ...(naverResult ?? fallbackOutput),
+    ...generatedNaver,
+    ...naverTitles,
     selected_products: params.selectedProducts,
     plain_text_for_naver: fallbackOutput.plain_text_for_naver,
     wordpress: fallbackOutput.wordpress,
@@ -68,6 +78,7 @@ export async function generateBlog(params: {
     wordpress: wordpressResult ?? fallbackOutput.wordpress,
     fallback: fallbackOutput.wordpress,
     naverOutput,
+    input: params.input,
   });
 
   return {
@@ -80,20 +91,27 @@ function normalizeGeneratedWordPress({
   wordpress,
   fallback,
   naverOutput,
+  input,
 }: {
   wordpress: Omit<WordPressDraftOutput, "markdown_for_wordpress"> | WordPressDraftOutput;
   fallback: WordPressDraftOutput;
   naverOutput: BlogDraftOutput;
+  input: BlogDraftInput;
 }): WordPressDraftOutput {
-  const titleCandidates = normalizeQuestionTitles(wordpress.title_candidates, fallback.title_candidates, naverOutput);
-  const selectedTitle =
-    titleCandidates.find((title) => title !== naverOutput.selected_title) ?? titleCandidates[0] ?? wordpress.selected_title;
+  const titles = normalizeTitleResult({
+    channel: "wordpress",
+    candidates: wordpress.title_candidates,
+    selectedTitle: wordpress.selected_title,
+    input,
+    selectedProducts: naverOutput.selected_products,
+    avoidTitle: naverOutput.selected_title,
+  });
   const normalized: WordPressDraftOutput = {
     ...wordpress,
     markdown_for_wordpress:
       "markdown_for_wordpress" in wordpress ? wordpress.markdown_for_wordpress : "",
-    title_candidates: titleCandidates,
-    selected_title: ensureQuestionTitle(selectedTitle),
+    title_candidates: titles.title_candidates,
+    selected_title: titles.selected_title,
     sections: naverOutput.sections.map((section, index) => ({
       id: wordpress.sections[index]?.id ?? fallback.sections[index]?.id ?? `wp-section-${index + 1}`,
       heading: ensureWordPressHeading(
@@ -115,21 +133,4 @@ function ensureWordPressHeading(heading: string, index: number) {
   const prefix = prefixes[index] ?? `${index + 1}.`;
   const cleanHeading = heading.replace(/^[1-7](?:️⃣|\.)\s*/, "").trim();
   return `${prefix} ${cleanHeading}`;
-}
-
-function normalizeQuestionTitles(titles: string[], fallbackTitles: string[], naverOutput: BlogDraftOutput) {
-  const keyword = naverOutput.selected_title.split(/[,\s]/)[0] || "";
-  const source = [...titles, ...fallbackTitles].filter(Boolean);
-  const normalized = source
-    .map(ensureQuestionTitle)
-    .map((title) => (keyword && !title.includes(keyword) ? `${keyword}, ${title}` : title))
-    .filter((title, index, list) => list.indexOf(title) === index)
-    .slice(0, 5);
-
-  return normalized.length === 5 ? normalized : [...normalized, ...fallbackTitles.map(ensureQuestionTitle)].slice(0, 5);
-}
-
-function ensureQuestionTitle(title: string) {
-  const trimmed = title.trim().replace(/[.!。]+$/g, "");
-  return trimmed.endsWith("?") ? trimmed : `${trimmed}?`;
 }

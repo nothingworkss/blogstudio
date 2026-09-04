@@ -1,4 +1,5 @@
 import { sharedWritingStandards } from "./writing-standards";
+import { getTitleContract } from "@/lib/title-workflow";
 
 export const blogLayoutPrompt = `
 역할:
@@ -33,13 +34,8 @@ ${sharedWritingStandards}
 - 서브 키워드는 각 키워드별 최대 2회 사용한다. 한 문장에 여러 키워드를 몰아넣지 않는다.
 - title_candidates는 후보 비교용이므로 위 완성 본문 횟수에서 제외한다.
 
-제목 후보 5개:
-- 메인 키워드를 후보마다 최대 1회만 자연스럽게 포함한다.
-- 키워드 직결형, 구체적 상황형, 선택 기준형, 제품 비교형, 부드러운 호기심형을 하나씩 쓴다.
-- 질문형은 최대 1개만 사용하고 나머지는 자연스러운 서술형으로 쓴다.
-- 권장 길이는 한글 기준 22~40자다. 시작 구조, 쉼표 위치, 끝맺음을 반복하지 않는다.
-- BEST, 완벽, 총정리, 무조건 같은 홍보성 표현과 확인되지 않은 후기·인기·고객 반응을 쓰지 않는다.
-- selected_title은 후보 중 상황과 검색 의도가 가장 선명한 하나를 고른다.
+${getTitleContract("naver")}
+- selected_title은 title_candidates 중 상황과 검색 의도가 가장 선명한 하나를 그대로 고른다.
 
 sections 계약:
 정확히 아래 7개를 같은 순서로 작성한다.
