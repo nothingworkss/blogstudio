@@ -9,7 +9,7 @@ import {
 } from "@/lib/product/editorial";
 import { formatMarkdownForWordPress, formatPlainTextForNaver } from "@/lib/utils/copyFormat";
 import { applySeoSectionHeadings, buildWordPressSectionHeadings } from "@/lib/utils/seoHeadings";
-import { buildLocalTitleCandidates, getTitleWarnings, normalizeTitleResult } from "@/lib/title-workflow";
+import { buildLocalTitleCandidates, buildLocalTitlePackage, getTitleWarnings, normalizeTitleResult, type TitleResult } from "@/lib/title-workflow";
 import { selectProductsByScore } from "./selectProducts";
 
 export function fallbackObserveImages(imageUrls: string[]): ImageObservation[] {
@@ -76,9 +76,11 @@ export function fallbackGenerateBlog(params: {
   const cta = input.cta || params.brand.default_cta;
   const referencePattern = referencePatternPayload(input.reference_style);
   const titleObject = withObjectParticle(titleBase);
+  const titlePlan = buildLocalTitlePackage(input, selectedProducts);
   const naverTitles = normalizeTitleResult({
     channel: "naver",
-    candidates: buildLocalTitleCandidates(input, selectedProducts, "naver"),
+    candidates: titlePlan.naver.candidates,
+    selectedTitle: titlePlan.naver.selectedTitle,
     input,
     selectedProducts,
   });
@@ -257,7 +259,23 @@ export function fallbackGenerateBlog(params: {
       naverPlainText,
       observations,
     }),
+    title_analysis: {
+      naver: serializeTitleEvaluations(titlePlan.naver),
+      wordpress: serializeTitleEvaluations(titlePlan.wordpress),
+    },
   };
+}
+
+function serializeTitleEvaluations(result: TitleResult) {
+  return result.evaluations.map((item) => ({
+    title: item.title,
+    type: item.type,
+    search_intent_score: item.searchIntentScore,
+    click_appeal_score: item.clickAppealScore,
+    naturalness_score: item.naturalnessScore,
+    keyword_fit_score: item.keywordFitScore,
+    reason: item.reason,
+  }));
 }
 
 function buildFallbackWordPressOutput({
@@ -388,6 +406,8 @@ function buildFallbackWordPressOutput({
       ...input.sub_keywords,
       first.product_name,
       second.product_name,
+      "쿠키 선물",
+      "답례품 가이드",
       "nothingmatters",
     ].filter((tag, index, tags) => tag && tags.indexOf(tag) === index).slice(0, 15),
     categories: ["브랜드 블로그", "답례품 가이드"],

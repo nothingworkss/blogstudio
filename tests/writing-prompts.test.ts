@@ -22,7 +22,8 @@ describe("writing prompt contracts", () => {
   });
 
   it("uses platform-specific mixed title shapes instead of forcing every title into a question", () => {
-    expect(blogLayoutPrompt).toContain("검색 의도 직결");
+    expect(blogLayoutPrompt).toContain("총 30개");
+    expect(blogLayoutPrompt).toContain("정보형·경험 확인형·비교형");
     expect(blogLayoutPrompt).toContain("질문형은 5개 중 최대 1개");
     expect(blogLayoutPrompt).toContain("22~40자");
     expect(blogLayoutPrompt).toContain("제품명·키워드를 나열");

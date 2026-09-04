@@ -27,7 +27,7 @@ ${sharedWritingStandards}
 
 SEO와 제목:
 ${getTitleContract("wordpress")}
-- selected_title은 title_candidates 중 하나를 그대로 고르고 네이버 제목과 다른 문장을 선택한다.
+- input.title_plan이 있으면 제목 전문 단계가 이미 고른 값이다. title_candidates와 selected_title은 input.title_plan 값을 한 글자도 바꾸지 않고 그대로 출력한다.
 - focus_keyword는 main_keyword를 사용한다.
 - secondary_keywords는 입력된 서브 키워드와 제품명에서 3~6개만 고른다.
 - slug는 영문 소문자, 숫자, 하이픈만 사용한다.

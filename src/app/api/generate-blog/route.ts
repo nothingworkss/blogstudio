@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
     title: output.selected_title,
     main_keyword: input.main_keyword,
     sub_keywords: input.sub_keywords,
+    target_reader: input.target_reader,
     topic: input.topic,
     situation: input.situation,
     raw_memo: input.raw_memo,

@@ -4,11 +4,13 @@ import { RefreshCw } from "lucide-react";
 import { clsx } from "clsx";
 import { Button } from "@/components/common/Button";
 import { getTitleWarnings, titleCandidateLabels, type TitleChannel } from "@/lib/title-workflow";
+import type { TitleEvaluationRecord } from "@/types/blog";
 
 export function TitleSelector({
   channel,
   mainKeyword,
   candidates,
+  evaluations = [],
   selectedTitle,
   onSelect,
   onRefresh,
@@ -16,6 +18,7 @@ export function TitleSelector({
   channel: TitleChannel;
   mainKeyword: string;
   candidates: string[];
+  evaluations?: TitleEvaluationRecord[];
   selectedTitle: string;
   onSelect: (title: string) => void;
   onRefresh: () => void;
@@ -44,6 +47,10 @@ export function TitleSelector({
         {candidates.map((title, index) => {
           const selected = selectedTitle === title;
           const warnings = getTitleWarnings(title, mainKeyword, channel);
+          const evaluation = evaluations.find((item) => item.title === title);
+          const score = evaluation
+            ? Math.round((evaluation.search_intent_score + evaluation.click_appeal_score + evaluation.naturalness_score + evaluation.keyword_fit_score) / 4)
+            : null;
           return (
             <button
               key={`${title}-${index}`}
@@ -62,8 +69,12 @@ export function TitleSelector({
                 {index + 1}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-[11px] font-semibold text-[#8a4b5a]">{labels[index] ?? "제목 후보"}</span>
+                <span className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-[#8a4b5a]">
+                  {evaluation?.type ?? labels[index] ?? "제목 후보"}
+                  {score !== null ? <span className="rounded-full bg-[#f1f0ec] px-1.5 py-0.5 text-[#5f5f5a]">종합 {score}/10</span> : null}
+                </span>
                 <strong className="mt-1 block text-[13px] leading-5 text-[#27272a]">{title}</strong>
+                {evaluation?.reason ? <span className="mt-1.5 block text-[11px] leading-4 text-[#6f6f6a]">{evaluation.reason}</span> : null}
                 <span className={clsx(
                   "mt-1.5 block text-[11px] leading-4",
                   warnings.length ? "text-[#a16207]" : "text-[#287845]",

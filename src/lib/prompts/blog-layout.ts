@@ -35,7 +35,7 @@ ${sharedWritingStandards}
 - title_candidates는 후보 비교용이므로 위 완성 본문 횟수에서 제외한다.
 
 ${getTitleContract("naver")}
-- selected_title은 title_candidates 중 상황과 검색 의도가 가장 선명한 하나를 그대로 고른다.
+- input.title_plan이 있으면 제목 전문 단계가 이미 고른 값이다. title_candidates와 selected_title은 input.title_plan 값을 한 글자도 바꾸지 않고 그대로 출력한다.
 
 sections 계약:
 정확히 아래 7개를 같은 순서로 작성한다.
@@ -67,6 +67,7 @@ FAQ와 해시태그:
 
 출력 전 자체 점검:
 - selected_products 밖의 제품이 들어갔는가?
+- input.title_plan의 제목이 그대로 유지되고, 도입과 소제목이 그 제목의 질문을 실제로 풀고 있는가?
 - 메인 키워드가 완성 본문 기준 정확히 3회이고 각 서브 키워드가 2회 이하인가?
 - 같은 선택 기준이나 CTA를 두 번 설명했는가?
 - 가격, 배송, 후기, 고객 반응, 맛과 향을 추정했는가?

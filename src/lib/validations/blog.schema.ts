@@ -22,6 +22,7 @@ export const blogDraftInputSchema = z.object({
   topic: z.string().min(1),
   main_keyword: z.string().min(1),
   sub_keywords: z.array(z.string()).default([]),
+  target_reader: z.string().default(""),
   situation: z.string().default(""),
   raw_memo: z.string().default(""),
   post_type: postTypeSchema.default("답례품 판매형"),
@@ -106,8 +107,62 @@ export const wordpressGenerationOutputSchema = wordpressDraftOutputSchema
   .omit({ markdown_for_wordpress: true })
   .extend({ sections: z.array(wordpressSectionSchema).length(7) });
 
+const titleIdeaTypeSchema = z.enum([
+  "정보형",
+  "경험 확인형",
+  "비교형",
+  "문제 해결형",
+  "궁금증 유발형",
+  "구매 직전형",
+]);
+
+const titleScoreSchema = z.object({
+  search_intent: z.number().min(0).max(10),
+  click_appeal: z.number().min(0).max(10),
+  naturalness: z.number().min(0).max(10),
+  keyword_fit: z.number().min(0).max(10),
+});
+
+const titleCandidateGroupSchema = z.object({
+  type: titleIdeaTypeSchema,
+  titles: z.array(z.string()).length(5),
+});
+
+const rankedTitleCandidateSchema = z.object({
+  title: z.string(),
+  type: titleIdeaTypeSchema,
+  scores: titleScoreSchema,
+  reason: z.string(),
+});
+
+const titleEvaluationRecordSchema = z.object({
+  title: z.string(),
+  type: titleIdeaTypeSchema,
+  search_intent_score: z.number().min(0).max(10),
+  click_appeal_score: z.number().min(0).max(10),
+  naturalness_score: z.number().min(0).max(10),
+  keyword_fit_score: z.number().min(0).max(10),
+  reason: z.string(),
+});
+
+export const titleChannelGenerationSchema = z.object({
+  candidate_groups: z.array(titleCandidateGroupSchema).length(6),
+  ranked_candidates: z.array(rankedTitleCandidateSchema).length(5),
+  title_candidates: z.array(z.string()).length(5),
+  selected_title: z.string(),
+});
+
+export const titleGenerationOutputSchema = z.object({
+  naver: titleChannelGenerationSchema,
+  wordpress: titleChannelGenerationSchema,
+});
+
 export const blogDraftOutputSchema = naverDraftOutputSchema.extend({
   wordpress: wordpressDraftOutputSchema,
+  title_analysis: z.object({
+    naver: z.array(titleEvaluationRecordSchema),
+    wordpress: z.array(titleEvaluationRecordSchema),
+  }).optional(),
 });
 
 export const draftQualityCheckSchema = z.object({
@@ -129,6 +184,7 @@ export const blogDraftRecordSchema = z.object({
   title: z.string(),
   main_keyword: z.string(),
   sub_keywords: z.array(z.string()),
+  target_reader: z.string().default(""),
   topic: z.string(),
   situation: z.string(),
   raw_memo: z.string(),

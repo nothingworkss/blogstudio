@@ -19,6 +19,7 @@ export type BlogDraftInput = {
   topic: string;
   main_keyword: string;
   sub_keywords: string[];
+  target_reader: string;
   situation: string;
   raw_memo: string;
   post_type: PostType;
@@ -75,6 +76,16 @@ export type WordPressDraftOutput = {
   markdown_for_wordpress: string;
 };
 
+export type TitleEvaluationRecord = {
+  title: string;
+  type: string;
+  search_intent_score: number;
+  click_appeal_score: number;
+  naturalness_score: number;
+  keyword_fit_score: number;
+  reason: string;
+};
+
 export type BlogDraftOutput = {
   title_candidates: string[];
   selected_title: string;
@@ -93,6 +104,10 @@ export type BlogDraftOutput = {
   }[];
   plain_text_for_naver: string;
   wordpress: WordPressDraftOutput;
+  title_analysis?: {
+    naver: TitleEvaluationRecord[];
+    wordpress: TitleEvaluationRecord[];
+  };
 };
 
 export type BlogDraftRecord = {
@@ -101,6 +116,7 @@ export type BlogDraftRecord = {
   title: string;
   main_keyword: string;
   sub_keywords: string[];
+  target_reader: string;
   topic: string;
   situation: string;
   raw_memo: string;

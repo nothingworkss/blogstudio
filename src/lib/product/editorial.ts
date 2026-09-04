@@ -355,7 +355,7 @@ function contextCompatibleText(value: string | null | undefined, input: BlogDraf
   const textContexts = extractSituationContexts(text);
   if (!textContexts.length) return text;
 
-  const inputText = [input.topic, input.main_keyword, input.situation, input.raw_memo].filter(Boolean).join(" ");
+  const inputText = [input.topic, input.main_keyword, input.target_reader, input.situation, input.raw_memo].filter(Boolean).join(" ");
   const inputContexts = extractSituationContexts(inputText);
   if (!inputContexts.length) return "";
   return textContexts.every((context) => inputContexts.includes(context)) ? text : "";

@@ -12,6 +12,7 @@ function input(overrides: Partial<BlogDraftInput>): BlogDraftInput {
     topic: "",
     main_keyword: "",
     sub_keywords: [],
+    target_reader: "",
     situation: "",
     raw_memo: "",
     post_type: "답례품 판매형",
@@ -74,6 +75,7 @@ describe("product selection scoring", () => {
       topic: "퇴사 답례품",
       main_keyword: "퇴사 답례품",
       sub_keywords: ["회사 답례품", "육아휴직 답례품", "커스텀 쿠키"],
+      target_reader: "마지막 출근 전 팀원 선물을 준비하는 사람",
       situation: "회사 마지막 날 팀원들에게 나눠줄 쿠키",
       raw_memo: "문구를 넣을 수 있는 답례품으로 소개하고 싶다",
     });
@@ -88,6 +90,9 @@ describe("product selection scoring", () => {
     expect(() => blogDraftOutputSchema.parse(output)).not.toThrow();
     expect(output.title_candidates).toHaveLength(5);
     expect(output.title_candidates.every((title) => title.includes(draftInput.main_keyword))).toBe(true);
+    expect(output.title_analysis?.naver).toHaveLength(5);
+    expect(output.title_analysis?.wordpress).toHaveLength(5);
+    expect(output.title_analysis?.naver[0]?.reason).toContain("타깃");
     expect(output.title_candidates.filter((title) => title.endsWith("?")).length).toBeLessThanOrEqual(1);
     expect(new Set(output.title_candidates).size).toBe(5);
     expect(output.wordpress.title_candidates).toHaveLength(5);
@@ -308,5 +313,22 @@ describe("product selection scoring", () => {
 
     expect(check.warnings.some((warning) => warning.message.startsWith("네이버 제목:"))).toBe(true);
     expect(check.warnings.some((warning) => warning.message.startsWith("워드프레스 제목:"))).toBe(true);
+  });
+
+  it("keeps enough WordPress tags when topic and keyword are identical", () => {
+    const draftInput = input({
+      topic: "퇴사 답례품",
+      main_keyword: "퇴사 답례품",
+      target_reader: "마지막 출근 전 팀원 선물을 준비하는 사람",
+    });
+    const output = fallbackGenerateBlog({
+      input: draftInput,
+      brand: seedBrand,
+      selectedProducts: fallbackSelectProducts(draftInput, seedProducts),
+      observations: [],
+    });
+
+    expect(output.wordpress.tags.length).toBeGreaterThanOrEqual(5);
+    expect(() => blogDraftOutputSchema.parse(output)).not.toThrow();
   });
 });

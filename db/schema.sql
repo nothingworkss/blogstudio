@@ -35,6 +35,7 @@ create table if not exists blog_drafts (
   title text,
   main_keyword text,
   sub_keywords text[] not null default '{}',
+  target_reader text,
   topic text,
   situation text,
   raw_memo text,
@@ -51,6 +52,7 @@ create table if not exists blog_drafts (
 
 alter table blog_drafts add column if not exists wordpress_title text;
 alter table blog_drafts add column if not exists wordpress_markdown text;
+alter table blog_drafts add column if not exists target_reader text;
 
 create table if not exists blog_images (
   id uuid primary key default gen_random_uuid(),

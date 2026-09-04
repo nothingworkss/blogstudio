@@ -86,6 +86,7 @@ export async function listDrafts(): Promise<BlogDraftRecord[]> {
 
   return data.map((draft) => ({
     ...(draft as BlogDraftRecord),
+    target_reader: draft.target_reader ?? "",
     content_json: draft.content_json,
     selected_products: draft.selected_products ?? [],
     image_observations: [],
@@ -107,6 +108,7 @@ export async function getDraft(id: string): Promise<BlogDraftRecord | null> {
 
   return {
     ...(data as BlogDraftRecord),
+    target_reader: data.target_reader ?? "",
     selected_products: data.selected_products ?? [],
     content_json: data.content_json,
     image_observations: images?.map((item) => item.observation).filter(Boolean) ?? [],
@@ -138,6 +140,7 @@ export async function saveDraft(
       title: next.title,
       main_keyword: next.main_keyword,
       sub_keywords: next.sub_keywords,
+      target_reader: next.target_reader,
       topic: next.topic,
       situation: next.situation,
       raw_memo: next.raw_memo,

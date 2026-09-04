@@ -18,7 +18,7 @@ export function selectProductsByScore(params: {
   recentProductNames?: string[];
 }): ProductScoreBreakdown[] {
   const { input, products, observations = [], recentProductNames = [] } = params;
-  const topicMemo = [input.topic, input.main_keyword, input.situation, input.raw_memo].join(" ");
+  const topicMemo = [input.topic, input.main_keyword, input.target_reader, input.situation, input.raw_memo].join(" ");
   const imageText = observations
     .flatMap((observation) => [
       ...observation.visible_products,
