@@ -40,6 +40,7 @@ import {
   hydrateRecommendation,
 } from "@/lib/product/editorial";
 import { getReferencePattern, referencePatternPayload, referenceStyles } from "@/lib/reference/blog-patterns";
+import { deriveContentAngle } from "@/lib/content/angle";
 import { formatImageGuide, formatMarkdownForWordPress, formatPlainTextForNaver, formatWordPressImageGuide, normalizeCheckBullets } from "@/lib/utils/copyFormat";
 import { getSeoCheck } from "@/lib/utils/formatBlog";
 import { parseJsonFromText } from "@/lib/utils/parseJsonFromText";
@@ -49,6 +50,7 @@ import {
   applyLockedNaverTitle,
   applyLockedWordPressTitle,
   buildLocalTitleCandidates,
+  buildLocalTitlePackage,
   buildLockedNaverTitleInstructions,
   buildLockedWordPressTitleInstructions,
   buildManualTitlePrompt,
@@ -61,6 +63,7 @@ import {
   parseTitlePackage,
   titleCandidateLabels,
   type TitleChannel,
+  type TitleCandidateGroup,
   type TitleEvaluation,
   type TitleTopic,
 } from "@/lib/title-workflow";
@@ -84,6 +87,7 @@ type ChannelTitleWorkflow = {
   candidates: string[];
   selectedTitle: string;
   evaluations: TitleEvaluation[];
+  candidateGroups: TitleCandidateGroup[];
 };
 type ManualTitleWorkflow = {
   contextKey: string;
@@ -99,8 +103,8 @@ const idleManualCopyState: ManualCopyStateMap = { naver: "idle", wordpress: "idl
 const idleManualTitleWorkflow: ManualTitleWorkflow = {
   contextKey: "",
   sourceText: "",
-  naver: { candidates: [], selectedTitle: "", evaluations: [] },
-  wordpress: { candidates: [], selectedTitle: "", evaluations: [] },
+  naver: { candidates: [], selectedTitle: "", evaluations: [], candidateGroups: [] },
+  wordpress: { candidates: [], selectedTitle: "", evaluations: [], candidateGroups: [] },
   copyState: "idle",
 };
 
@@ -115,7 +119,7 @@ const defaultInput: BlogDraftInput = {
   reference_style: "답례품 추천형",
   preferred_products: [],
   product_detail_answers: {},
-  cta: "필요한 날짜와 수량만 먼저 알려주셔도 괜찮아요. 어떤 구성이 편할지 같이 정리해볼게요.",
+  cta: "누구에게 어떤 마음을 전하고 싶은지부터 알려주셔도 괜찮아요. 어떤 구성이 편할지 같이 정리해볼게요.",
   images: [],
 };
 
@@ -177,20 +181,26 @@ export function BlogStudioApp({
     () => buildTitleTopic(input, selectedProducts),
     [input, selectedProducts],
   );
-  const localNaverTitleCandidates = useMemo(
-    () => selectedProducts.length === 2 ? buildLocalTitleCandidates(input, selectedProducts, "naver") : [],
+  const localTitlePackage = useMemo(
+    () => selectedProducts.length === 2 ? buildLocalTitlePackage(input, selectedProducts) : null,
     [input, selectedProducts],
   );
-  const localWordPressTitleCandidates = useMemo(
-    () => selectedProducts.length === 2 ? buildLocalTitleCandidates(input, selectedProducts, "wordpress") : [],
-    [input, selectedProducts],
-  );
+  const localNaverTitleCandidates = localTitlePackage?.naver.candidates ?? [];
+  const localWordPressTitleCandidates = localTitlePackage?.wordpress.candidates ?? [];
   const currentNaverTitleCandidates = currentTitleWorkflow.naver.candidates.length
     ? currentTitleWorkflow.naver.candidates
     : localNaverTitleCandidates;
   const currentWordPressTitleCandidates = currentTitleWorkflow.wordpress.candidates.length
     ? currentTitleWorkflow.wordpress.candidates
     : localWordPressTitleCandidates;
+  const currentTitleCandidateGroups = {
+    naver: currentTitleWorkflow.naver.candidateGroups.length
+      ? currentTitleWorkflow.naver.candidateGroups
+      : localTitlePackage?.naver.candidateGroups ?? [],
+    wordpress: currentTitleWorkflow.wordpress.candidateGroups.length
+      ? currentTitleWorkflow.wordpress.candidateGroups
+      : localTitlePackage?.wordpress.candidateGroups ?? [],
+  };
   const titleCandidateSource = {
     naver: currentTitleWorkflow.naver.candidates.length ? "openai" as const : "local" as const,
     wordpress: currentTitleWorkflow.wordpress.candidates.length ? "openai" as const : "local" as const,
@@ -294,20 +304,28 @@ export function BlogStudioApp({
       }
 
       setNotice("사진에서 보이는 제품, 포장, 색상, 문구만 관찰하는 중입니다.");
-      const nextObservations = input.images.length
+      const observationResult = input.images.length
         ? await fetch("/api/observe-images", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ image_urls: input.images.map((image) => image.url) }),
           })
-            .then((response) => response.json())
-            .then((data) => data.observations ?? [])
-        : [];
+            .then(async (response) => {
+              const data = await response.json();
+              if (!response.ok) throw new Error(data.error ?? "사진 관찰에 실패했습니다.");
+              return data as { observations?: ImageObservation[]; image_analysis_available?: boolean };
+            })
+        : { observations: [], image_analysis_available: false };
+      const nextObservations = observationResult.observations ?? [];
 
       setObservations(nextObservations);
       setManualCopyState(idleManualCopyState);
       setManualTitleWorkflow(idleManualTitleWorkflow);
-      setNotice(`사진 관찰 완료: ${nextObservations.length}개 결과를 반영했습니다.`);
+      setNotice(
+        observationResult.image_analysis_available
+          ? `사진 관찰 완료: ${nextObservations.length}개 결과를 본문 기준에 반영했습니다.`
+          : "사진 자동 관찰이 연결되지 않아 사진 내용을 추정하지 않았습니다. 사진에서 꼭 반영할 요소는 짧은 메모에 적어 주세요.",
+      );
       return nextObservations as ImageObservation[];
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "사진 관찰 중 문제가 생겼습니다.");
@@ -431,6 +449,7 @@ export function BlogStudioApp({
     const names = [selectedProducts[0]?.product_name ?? "", selectedProducts[1]?.product_name ?? ""];
     names[slot] = productName;
     const uniqueNames = names.filter(Boolean).filter((name, index, values) => values.indexOf(name) === index).slice(0, 2);
+    const contentAngle = deriveContentAngle(input);
     const nextProducts = uniqueNames.map((name) => {
       const product = products.find((item) => item.name === name);
       return product
@@ -439,8 +458,8 @@ export function BlogStudioApp({
             product_name: name,
             reason: `${input.topic} 상황에 맞춰 직접 선택한 제품입니다.`,
             angle: `${input.topic}에 맞는 추천 포인트`,
-            main_points: ["상황에 맞는 구성", "문의 전 수량 확인", "문구와 포장 상담"],
-            caution: "필요한 날짜와 수량은 주문 전 확인이 필요합니다.",
+            main_points: contentAngle.decisionAxes,
+            caution: `${contentAngle.orderChecks[0]}부터 확인이 필요합니다.`,
           } as ProductRecommendation, input);
     });
 
@@ -521,6 +540,7 @@ export function BlogStudioApp({
           ? current.naver.selectedTitle
           : parsed.naver.selectedTitle,
         evaluations: parsed.naver.evaluations,
+        candidateGroups: parsed.naver.candidateGroups,
       },
       wordpress: {
         candidates: parsed.wordpress.candidates,
@@ -528,6 +548,7 @@ export function BlogStudioApp({
           ? current.wordpress.selectedTitle
           : parsed.wordpress.selectedTitle,
         evaluations: parsed.wordpress.evaluations,
+        candidateGroups: parsed.wordpress.candidateGroups,
       },
     }));
     setManualCopyState(idleManualCopyState);
@@ -646,6 +667,10 @@ export function BlogStudioApp({
         title_analysis: {
           naver: serializeTitleEvaluations(currentTitleWorkflow.naver.evaluations),
           wordpress: serializeTitleEvaluations(currentTitleWorkflow.wordpress.evaluations),
+          candidate_groups: {
+            naver: currentTitleCandidateGroups.naver,
+            wordpress: currentTitleCandidateGroups.wordpress,
+          },
         },
       });
       const response = await fetch("/api/drafts", {
@@ -780,6 +805,7 @@ export function BlogStudioApp({
                 titleTopic={titleTopic}
                 titleCandidates={{ naver: currentNaverTitleCandidates, wordpress: currentWordPressTitleCandidates }}
                 titleEvaluations={{ naver: currentTitleWorkflow.naver.evaluations, wordpress: currentTitleWorkflow.wordpress.evaluations }}
+                titleCandidateGroups={currentTitleCandidateGroups}
                 titleCandidateSource={titleCandidateSource}
                 selectedTitles={{ naver: currentTitleWorkflow.naver.selectedTitle, wordpress: currentTitleWorkflow.wordpress.selectedTitle }}
                 titleWarnings={titleWarnings}
@@ -955,6 +981,7 @@ function NewPostView({
   titleTopic,
   titleCandidates,
   titleEvaluations,
+  titleCandidateGroups,
   titleCandidateSource,
   selectedTitles,
   titleWarnings,
@@ -992,6 +1019,7 @@ function NewPostView({
   titleTopic: TitleTopic;
   titleCandidates: Record<TitleChannel, string[]>;
   titleEvaluations: Record<TitleChannel, TitleEvaluation[]>;
+  titleCandidateGroups: Record<TitleChannel, TitleCandidateGroup[]>;
   titleCandidateSource: Record<TitleChannel, "local" | "openai">;
   selectedTitles: Record<TitleChannel, string>;
   titleWarnings: Record<TitleChannel, string[]>;
@@ -1159,6 +1187,7 @@ function NewPostView({
           titleTopic={titleTopic}
           candidates={titleCandidates}
           evaluations={titleEvaluations}
+          candidateGroups={titleCandidateGroups}
           candidateSource={titleCandidateSource}
           selectedTitles={selectedTitles}
           warnings={titleWarnings}
@@ -1444,6 +1473,7 @@ function ChannelTitlePanel({
   titleTopic,
   candidates,
   evaluations,
+  candidateGroups,
   candidateSource,
   selectedTitles,
   warnings,
@@ -1458,6 +1488,7 @@ function ChannelTitlePanel({
   titleTopic: TitleTopic;
   candidates: Record<TitleChannel, string[]>;
   evaluations: Record<TitleChannel, TitleEvaluation[]>;
+  candidateGroups: Record<TitleChannel, TitleCandidateGroup[]>;
   candidateSource: Record<TitleChannel, "local" | "openai">;
   selectedTitles: Record<TitleChannel, string>;
   warnings: Record<TitleChannel, string[]>;
@@ -1474,6 +1505,7 @@ function ChannelTitlePanel({
   const channelLabel = activeChannel === "naver" ? "네이버" : "워드프레스";
   const channelCandidates = candidates[activeChannel];
   const channelEvaluations = evaluations[activeChannel];
+  const channelCandidateGroups = candidateGroups[activeChannel];
   const selectedTitle = selectedTitles[activeChannel];
   const channelWarnings = warnings[activeChannel];
 
@@ -1599,6 +1631,30 @@ function ChannelTitlePanel({
               );
             })}
           </div>
+        ) : null}
+
+        {channelCandidateGroups.length ? (
+          <section aria-label={`${channelLabel} 전체 30개 제목 후보`} className="grid gap-3 border-t border-[#ecebe7] pt-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h4 className="text-[13px] font-bold text-[#27272a]">전체 30개 제목 후보</h4>
+              <span className="text-[11px] text-[#6f6f6a]">유형별 5개 · 위에는 평가 상위 5개만 표시</span>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {channelCandidateGroups.map((group) => (
+                <article key={group.type} className="rounded-[10px] border border-[#e5e4df] bg-[#fafaf8] p-3">
+                  <h5 className="text-[12px] font-bold text-[#8a4b5a]">{group.type}</h5>
+                  <ol className="mt-2 grid gap-1.5">
+                    {group.titles.map((title, index) => (
+                      <li key={`${group.type}-${title}-${index}`} className="flex gap-2 text-[11px] leading-4 text-[#4f4f4b]">
+                        <span className="shrink-0 font-semibold text-[#aaa9a3]">{index + 1}</span>
+                        <span>{title}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </article>
+              ))}
+            </div>
+          </section>
         ) : null}
 
         <Field label={`최종 ${channelLabel} 제목`} hint={`${selectedTitle.length}자 · 직접 수정 가능`}>
@@ -1828,19 +1884,20 @@ function buildFaq(input: BlogDraftInput, output: BlogDraftOutput) {
   const [firstProduct, secondProduct] = output.selected_products;
   const firstName = firstProduct?.product_name ?? "추천 제품";
   const secondName = secondProduct?.product_name ?? "다른 구성";
+  const contentAngle = deriveContentAngle(input, output.selected_products);
 
   return [
     {
-      q: `${input.topic}으로 어떤 제품이 제일 잘 맞나요?`,
-      a: `짧은 문구나 기념 포인트가 중요하면 ${firstName}, 조금 더 가볍게 전하고 싶다면 ${secondName}도 잘 어울립니다.`,
+      q: `${input.topic}에서는 어떤 제품이 더 잘 맞나요?`,
+      a: `${contentAngle.decisionAxes.slice(0, 2).join(", ")}부터 정한 뒤 ${firstName}와 ${secondName}을 비교하면 더 편해요.`,
     },
     {
-      q: "문구를 넣을 수 있나요?",
-      a: "제품과 일정에 따라 달라질 수 있어요. 이름, 날짜, 짧은 감사 문구처럼 필요한 포인트를 먼저 알려주세요.",
+      q: "문의할 때 어떤 내용을 먼저 보내면 좋나요?",
+      a: `${contentAngle.orderChecks.slice(0, 3).join(", ")} 정도를 먼저 알려주시면 확인이 빨라집니다.`,
     },
     {
-      q: "소량이나 단체 주문도 가능한가요?",
-      a: "구성에 따라 가능 여부가 달라질 수 있어요. 필요한 날짜와 예상 수량을 먼저 보내주시면 확인이 빠릅니다.",
+      q: "아직 방향이 정해지지 않았어도 상담할 수 있나요?",
+      a: "네. 누가 받는지와 어떤 장면으로 전할지만 알려주시면 선택 기준부터 같이 정리해드릴 수 있어요.",
     },
     {
       q: "배송도 가능한가요?",
@@ -1853,15 +1910,16 @@ function buildRicherFaq(input: BlogDraftInput, output: BlogDraftOutput) {
   const [firstProduct, secondProduct] = output.selected_products;
   const firstName = firstProduct?.product_name ?? "추천 제품";
   const secondName = secondProduct?.product_name ?? "다른 구성";
+  const contentAngle = deriveContentAngle(input, output.selected_products);
 
   return [
     {
       q: `${input.main_keyword || input.topic}으로 ${firstName}와 ${secondName} 중 어떤 구성이 더 잘 맞나요?`,
-      a: `문구나 기념 포인트가 중요하면 ${firstName}, 조금 더 가볍게 나누고 싶다면 ${secondName} 쪽으로 먼저 비교해보면 좋아요.`,
+      a: `${contentAngle.decisionAxes.slice(0, 2).join(", ")} 기준으로 ${firstName}와 ${secondName}을 비교해보면 좋아요.`,
     },
     {
       q: "문의할 때 어떤 정보를 먼저 보내면 좋나요?",
-      a: "필요한 날짜, 예상 수량, 원하는 문구, 포장 방식, 픽업 또는 차량 퀵 필요 여부를 먼저 알려주시면 확인이 빠릅니다.",
+      a: `${contentAngle.orderChecks.slice(0, 4).join(", ")}을 먼저 알려주시면 확인이 빠릅니다.`,
     },
     {
       q: "문구를 아직 정하지 못했어도 상담할 수 있나요?",
@@ -1869,13 +1927,14 @@ function buildRicherFaq(input: BlogDraftInput, output: BlogDraftOutput) {
     },
     {
       q: "사진은 어떤 순서로 올리면 글이 자연스러울까요?",
-      a: "대표 사진, 제품 디테일, 포장 사진, 여러 개를 함께 둔 수량감 사진 순서로 배치하면 모바일에서 보기 편합니다.",
+      a: "대표 사진, 제품 디테일, 전달 장면, 선택 기준이 보이는 사진 순서로 배치하면 모바일에서 보기 편합니다.",
     },
   ];
 }
 
 function buildExpandedImageGuide(input: BlogDraftInput, output: BlogDraftOutput) {
   const [firstProduct, secondProduct] = output.selected_products;
+  const contentAngle = deriveContentAngle(input, output.selected_products);
   return [
     {
       position: "도입부 바로 아래",
@@ -1884,23 +1943,23 @@ function buildExpandedImageGuide(input: BlogDraftInput, output: BlogDraftOutput)
     },
     {
       position: "상황 공감 섹션 뒤",
-      image_type: "포장 또는 수량감 사진",
-      caption: "받는 사람 수와 전달 방식을 떠올릴 수 있는 사진이 좋습니다.",
+        image_type: "전달 장면 사진",
+        caption: `${contentAngle.decisionAxes[0]} 쪽이 떠오르는 사진이 좋습니다.`,
     },
     {
       position: `${firstProduct?.product_name ?? "첫 번째 제품"} 소개 뒤`,
       image_type: "제품 디테일 사진",
-      caption: `${firstProduct?.product_name ?? "첫 번째 제품"}의 문구, 표정, 질감이 보이는 컷을 사용하세요.`,
+        caption: `${firstProduct?.product_name ?? "첫 번째 제품"}의 선택 포인트와 디테일이 보이는 컷을 사용하세요.`,
     },
     {
       position: `${secondProduct?.product_name ?? "두 번째 제품"} 소개 뒤`,
-      image_type: "대안 제품 또는 개별 포장 사진",
+        image_type: "대안 제품 또는 전달 장면 사진",
       caption: `${secondProduct?.product_name ?? "두 번째 제품"}이 어떤 상황에 잘 맞는지 보여주는 사진을 넣습니다.`,
     },
     {
       position: "주문 전 체크포인트 앞",
-      image_type: "전체 구성과 포장 방식",
-      caption: "수량, 포장, 문구 확인이 필요한 지점을 사진으로 자연스럽게 연결하세요.",
+        image_type: "선택 기준 사진",
+        caption: `${contentAngle.decisionAxes.slice(0, 2).join(", ")}이 보이는 지점을 사진으로 자연스럽게 연결하세요.`,
     },
     {
       position: "마무리 CTA 앞",
@@ -1911,13 +1970,14 @@ function buildExpandedImageGuide(input: BlogDraftInput, output: BlogDraftOutput)
 }
 
 function recommendationFromProduct(product: Product, input: BlogDraftInput): ProductRecommendation {
+  const contentAngle = deriveContentAngle(input);
   return hydrateRecommendation(
     {
       product_name: product.name,
       reason: `${input.topic} 상황에서 ${product.category} 구성이 기준을 잡기 편해서 선택했습니다.`,
       angle: product.default_intro || `${input.topic}에 맞는 ${product.category} 추천 포인트`,
-      main_points: product.strengths.slice(0, 3).length ? product.strengths.slice(0, 3) : ["상황에 맞는 구성", "선물감 있는 포장", "문의 전 일정 확인"],
-      caution: product.cautions[0] || "필요한 날짜와 수량은 주문 전 확인이 필요합니다.",
+      main_points: product.strengths.slice(0, 3).length ? product.strengths.slice(0, 3) : contentAngle.decisionAxes,
+      caution: product.cautions[0] || `${contentAngle.orderChecks[0]}부터 확인이 필요합니다.`,
       summary: {
         recommended_situation: "",
         one_line_point: "",
@@ -1995,6 +2055,7 @@ function buildManualPrompt({
   };
   const naverSectionHeadings = buildSeoSectionHeadings(input, selectedProducts);
   const wordpressSectionHeadings = buildWordPressSectionHeadings(input, selectedProducts);
+  const contentAngle = deriveContentAngle(input, selectedProducts);
   const commonData = `
 프롬프트 버전: ${WRITING_PROMPT_VERSION}
 
@@ -2009,6 +2070,9 @@ ${JSON.stringify(selectedDetails, null, 2)}
 
 사진 관찰 결과:
 ${JSON.stringify(observations, null, 2)}
+
+이번 글의 콘텐츠 각도:
+${JSON.stringify(contentAngle, null, 2)}
 
 원문 제거 참고 패턴:
 ${JSON.stringify(referencePatternPayload(input.reference_style), null, 2)}
@@ -2054,7 +2118,7 @@ ${commonData}
   "image_guide": [
     { "position": "도입부 아래", "image_type": "대표 이미지", "caption": "사진 아래 문장" },
     { "position": "${selectedProducts[0]?.product_name ?? "첫 번째 제품"} 소개 뒤", "image_type": "제품 디테일", "caption": "사진 아래 문장" },
-    { "position": "${selectedProducts[1]?.product_name ?? "두 번째 제품"} 소개 뒤", "image_type": "포장 사진", "caption": "사진 아래 문장" }
+    { "position": "${selectedProducts[1]?.product_name ?? "두 번째 제품"} 소개 뒤", "image_type": "전달 장면 사진", "caption": "사진 아래 문장" }
   ]
 }`;
   }
@@ -2108,7 +2172,7 @@ ${JSON.stringify(wordpressSectionHeadings, null, 2)}
   "image_guide": [
     { "position": "첫 문단 아래", "image_type": "대표 사진", "caption": "사진 설명", "alt_text": "이미지 ALT" },
     { "position": "${selectedProducts[0]?.product_name ?? "첫 번째 제품"} 소개 뒤", "image_type": "제품 디테일", "caption": "사진 설명", "alt_text": "이미지 ALT" },
-    { "position": "${selectedProducts[1]?.product_name ?? "두 번째 제품"} 소개 뒤", "image_type": "포장 사진", "caption": "사진 설명", "alt_text": "이미지 ALT" }
+    { "position": "${selectedProducts[1]?.product_name ?? "두 번째 제품"} 소개 뒤", "image_type": "전달 장면 사진", "caption": "사진 설명", "alt_text": "이미지 ALT" }
   ],
   "markdown_for_wordpress": "# ${selectedTitle}\\n\\n## ${wordpressSectionHeadings[0]}\\n\\n본문"
 }`;
@@ -2336,6 +2400,7 @@ function buildDefaultWordPressOutput(
   const [first, second] = output.selected_products;
   const firstName = first?.product_name ?? "첫 번째 쿠키";
   const secondName = second?.product_name ?? "두 번째 쿠키";
+  const contentAngle = deriveContentAngle(input, output.selected_products);
   const titles = normalizeTitleResult({
     channel: "wordpress",
     candidates: buildLocalTitleCandidates(input, output.selected_products, "wordpress"),
@@ -2350,52 +2415,52 @@ function buildDefaultWordPressOutput(
     {
       id: "wp-intro",
       heading: sectionHeadings[0],
-      body: `${keyword}을 준비할 때는 제품 이름보다 수량, 문구, 포장 방식처럼 실제로 정해야 하는 기준이 먼저 보여야 편해요.`,
+      body: `${keyword} 준비를 시작할 때는 ${contentAngle.coreQuestion}부터 정리하면 선택이 한결 자연스러워져요.`,
     },
     {
       id: "wp-empathy",
       heading: sectionHeadings[1],
-      body: "✅ 전달할 인원과 예상 수량\n✅ 짧은 문구나 이름이 필요한지\n✅ 개별 포장과 전달 방식\n✅ 행사일 또는 수령 희망일",
+      body: contentAngle.decisionAxes.map((item) => `✅ ${item}`).join("\n"),
     },
     {
       id: "wp-product-1",
       heading: sectionHeadings[2],
-      body: `문구나 기념 포인트가 중요하면 저는 <mark style="background: linear-gradient(transparent 60%, #fff3a3 60%); padding: 0 0.08em;">${firstName} 쪽으로 먼저 기준을 잡아요</mark>. 전달할 장면이 정해져 있으면 문구 길이와 날짜를 먼저 보는 편이 안전합니다.`,
+      body: `<mark style="background: linear-gradient(transparent 60%, #fff3a3 60%); padding: 0 0.08em;">${firstName} 선택은 ${contentAngle.decisionAxes[0]} 쪽을 먼저 살펴볼 때 비교하기 좋아요</mark>. 제품 자체보다 전달할 장면을 먼저 보면 선택 이유가 더 또렷해집니다.`,
     },
     {
       id: "wp-product-2",
       heading: sectionHeadings[3],
-      body: `<mark style="background: linear-gradient(transparent 60%, #fff3a3 60%); padding: 0 0.08em;">${secondName}은 마음을 너무 무겁게 만들지 않고 전하고 싶을 때 보기 편해요</mark>. ${firstName}이 문구와 기념 포인트 쪽이라면, ${secondName}은 가볍게 나누는 기준으로 보면 좋습니다.`,
+      body: `<mark style="background: linear-gradient(transparent 60%, #fff3a3 60%); padding: 0 0.08em;">${secondName} 선택은 ${contentAngle.decisionAxes[1]} 쪽을 함께 살펴볼 때 보기 편해요</mark>. ${firstName}과 비교할 때도 어느 하나가 더 낫다기보다, 지금 전하려는 장면에 맞는 쪽으로 나누면 됩니다.`,
     },
     {
       id: "wp-recommend-list",
       heading: sectionHeadings[4],
-      body: "✅ 답례품 기준이 아직 흐릿한 분\n✅ 수량, 문구, 포장을 한 번에 정리하고 싶은 분\n✅ 네이버와 다른 워드프레스용 정보 글이 필요한 분",
+      body: contentAngle.readerSignals.map((item) => `✅ ${item}`).join("\n"),
     },
     {
       id: "wp-order-checklist",
       heading: sectionHeadings[5],
-      body: "✅ 필요한 날짜\n✅ 예상 수량\n✅ 넣고 싶은 문구\n✅ 포장 방식\n✅ 픽업 또는 차량 퀵 필요 여부",
+      body: contentAngle.orderChecks.map((item) => `✅ ${item}`).join("\n"),
     },
     {
       id: "wp-cta",
       heading: sectionHeadings[6],
-      body: input.cta || "필요한 날짜와 수량만 먼저 알려주셔도 괜찮아요. 어떤 구성이 편할지는 그 기준을 보고 같이 좁혀볼게요.",
+      body: input.cta || `${contentAngle.ctaLead} 어떤 구성이 편할지 같이 좁혀볼게요.`,
     },
   ];
   const wordpress: WordPressDraftOutput = {
     title_candidates: titleCandidates,
     selected_title: selectedTitle,
     slug: slugifyKoreanAware(keyword),
-    meta_description: `${keyword}을 준비할 때 필요한 수량, 문구, 포장 기준과 ${firstName}, ${secondName} 선택 기준을 사장님 정보형으로 정리했습니다.`,
-    excerpt: `${keyword}을 고를 때 제가 먼저 보는 기준을 워드프레스용 사장님 정보형 글로 정리했습니다.`,
+    meta_description: `${keyword} 준비에서 ${contentAngle.decisionAxes.slice(0, 2).join(", ")}처럼 먼저 볼 기준과 ${firstName}, ${secondName} 비교 방법을 정리했습니다.`,
+    excerpt: `${keyword} 준비에서 ${contentAngle.coreQuestion} 먼저 정리하는 워드프레스용 정보 글입니다.`,
     focus_keyword: keyword,
     secondary_keywords: [input.topic, ...input.sub_keywords, firstName, secondName].filter(Boolean).slice(0, 6),
     sections,
     faq: [
       {
         q: `${keyword}으로 어떤 구성을 먼저 보면 좋을까요?`,
-        a: `문구와 기념 포인트가 중요하면 ${firstName}, 가볍게 나누는 기준이면 ${secondName}로 나눠 보면 편해요.`,
+        a: `${contentAngle.decisionAxes.slice(0, 2).join(", ")}부터 정한 뒤 ${firstName}와 ${secondName}을 비교하면 편해요.`,
       },
       {
         q: "네이버 글과 같은 내용을 써도 괜찮나요?",
@@ -2432,14 +2497,14 @@ function buildDefaultWordPressOutput(
       {
         position: `${firstName} 기준 설명 뒤`,
         image_type: "제품 디테일",
-        caption: `${firstName}의 문구나 디테일이 보이는 사진`,
+        caption: `${firstName}의 선택 포인트가 보이는 사진`,
         alt_text: `${keyword} ${firstName} 제품 디테일 사진`,
       },
       {
         position: `${secondName} 기준 설명 뒤`,
-        image_type: "포장 사진",
-        caption: `${secondName}의 포장 분위기를 보여주는 사진`,
-        alt_text: `${keyword} ${secondName} 포장 사진`,
+        image_type: "전달 장면 사진",
+        caption: `${secondName}이 어떤 장면에 어울리는지 보여주는 사진`,
+        alt_text: `${keyword} ${secondName} 전달 장면 사진`,
       },
     ],
     markdown_for_wordpress: "",
@@ -2592,6 +2657,7 @@ function slugifyKoreanAware(value: string) {
 }
 
 function normalizeRecommendations(rawProducts: unknown, input: BlogDraftInput, fallback: ProductRecommendation[]) {
+  const contentAngle = deriveContentAngle(input);
   const source = Array.isArray(rawProducts) && rawProducts.length >= 2 ? rawProducts : fallback;
   const paddedSource = [...source];
   while (paddedSource.length < 2) {
@@ -2600,8 +2666,8 @@ function normalizeRecommendations(rawProducts: unknown, input: BlogDraftInput, f
       product_name: input.preferred_products[index] || `추천 제품 ${index + 1}`,
       reason: `${input.topic || input.main_keyword} 상황에 맞춰 확인할 제품입니다.`,
       angle: `${input.topic || input.main_keyword}에 맞는 구성`,
-      main_points: ["수량 확인", "문구 확인", "포장 방식 확인"],
-      caution: "필요한 날짜와 수량을 먼저 확인합니다.",
+      main_points: contentAngle.decisionAxes,
+      caution: `${contentAngle.orderChecks[0]}부터 확인합니다.`,
     });
   }
 
@@ -2614,7 +2680,7 @@ function normalizeRecommendations(rawProducts: unknown, input: BlogDraftInput, f
         reason: String(raw.reason || fallbackProduct?.reason || `${input.topic} 상황에 맞는 제품입니다.`),
         angle: String(raw.angle || fallbackProduct?.angle || `${input.topic}에 맞는 추천 각도`),
         main_points: normalizeStringArray(raw.main_points, 3, fallbackProduct?.main_points ?? ["상황에 맞는 구성", "선물감", "문의 전 일정 확인"]).slice(0, 5),
-        caution: String(raw.caution || fallbackProduct?.caution || "필요한 날짜와 수량은 주문 전 확인이 필요합니다."),
+        caution: String(raw.caution || fallbackProduct?.caution || `${contentAngle.orderChecks[0]}부터 주문 전 확인이 필요합니다.`),
         summary: normalizeRecommendationSummary(raw.summary, fallbackProduct?.summary, input),
         owner_comment: String(raw.owner_comment || fallbackProduct?.owner_comment || ""),
         missing_info: normalizeStringArray(raw.missing_info, 0, fallbackProduct?.missing_info ?? []),
@@ -2626,12 +2692,13 @@ function normalizeRecommendations(rawProducts: unknown, input: BlogDraftInput, f
 
 function normalizeRecommendationSummary(rawSummary: unknown, fallbackSummary: ProductRecommendation["summary"] | undefined, input: BlogDraftInput) {
   const raw = rawSummary && typeof rawSummary === "object" ? rawSummary as Partial<ProductRecommendation["summary"]> : {};
+  const contentAngle = deriveContentAngle(input);
   return {
     recommended_situation: String(raw.recommended_situation || fallbackSummary?.recommended_situation || input.topic || ""),
     one_line_point: String(raw.one_line_point || fallbackSummary?.one_line_point || ""),
-    message_point: String(raw.message_point || fallbackSummary?.message_point || "문구 적용 여부는 상담 시 확인이 필요합니다."),
-    packaging_mood: String(raw.packaging_mood || fallbackSummary?.packaging_mood || "포장 방식은 수량과 전달 상황에 맞춰 상담이 필요합니다."),
-    order_check: String(raw.order_check || fallbackSummary?.order_check || "필요한 날짜와 수량을 먼저 확인합니다."),
+    message_point: String(raw.message_point || fallbackSummary?.message_point || "전하고 싶은 포인트는 상담 시 함께 정리할 수 있습니다."),
+    packaging_mood: String(raw.packaging_mood || fallbackSummary?.packaging_mood || "전달 장면에 맞는 방식은 상담 시 함께 정리할 수 있습니다."),
+    order_check: String(raw.order_check || fallbackSummary?.order_check || `${contentAngle.orderChecks[0]}부터 먼저 확인합니다.`),
   };
 }
 
@@ -2643,6 +2710,7 @@ function normalizeSections(
   selectedProducts: ProductRecommendation[],
 ) {
   const seoHeadings = buildSeoSectionHeadings(input, selectedProducts);
+  const contentAngle = deriveContentAngle(input, selectedProducts);
   if (Array.isArray(rawSections) && rawSections.length >= 6) {
     return rawSections.map((section, index) => {
       const raw = section as { id?: unknown; type?: unknown; heading?: unknown; body?: unknown };
@@ -2669,7 +2737,7 @@ function normalizeSections(
       id: "empathy",
       type: "empathy" as const,
       heading: seoHeadings[1],
-      body: paragraphs.slice(2, 4).join("\n\n") || `${input.situation || input.raw_memo || "수량, 문구, 포장, 전달 방식을 함께 고민하게 되는 상황입니다."}`,
+      body: paragraphs.slice(2, 4).join("\n\n") || `${input.situation || input.raw_memo || `${contentAngle.coreQuestion} 함께 고민하게 되는 상황입니다.`}`,
     },
     {
       id: "product-1",
@@ -2687,19 +2755,19 @@ function normalizeSections(
       id: "recommend-list",
       type: "recommend_list" as const,
       heading: seoHeadings[4],
-      body: "✅ 상황에 맞는 답례품을 찾는 분\n✅ 문구와 포장을 함께 고민하는 분\n✅ 여러 명에게 깔끔하게 나눠야 하는 분",
+      body: contentAngle.readerSignals.map((item) => `✅ ${item}`).join("\n"),
     },
     {
       id: "order-checklist",
       type: "order_checklist" as const,
       heading: seoHeadings[5],
-      body: "✅ 필요한 날짜\n✅ 예상 수량\n✅ 원하는 문구\n✅ 포장 방식\n✅ 픽업 또는 차량 퀵 여부",
+      body: contentAngle.orderChecks.map((item) => `✅ ${item}`).join("\n"),
     },
     {
       id: "cta",
       type: "cta" as const,
       heading: seoHeadings[6],
-      body: input.cta || "필요한 날짜와 수량만 먼저 알려주셔도 괜찮아요.",
+      body: input.cta || `${contentAngle.ctaLead} 어떤 구성이 편할지 같이 좁혀볼게요.`,
     },
   ];
 }
@@ -2756,7 +2824,7 @@ function normalizeImageGuide(rawGuide: unknown, selectedProducts: ProductRecomme
     ...parsed,
     { position: "도입부 아래", image_type: "대표 이미지", caption: `${input.topic}에 어울리는 대표 제품 사진` },
     { position: `${selectedProducts[0]?.product_name ?? "첫 번째 제품"} 소개 뒤`, image_type: "제품 디테일", caption: `${selectedProducts[0]?.product_name ?? "제품"} 디테일 사진` },
-    { position: `${selectedProducts[1]?.product_name ?? "두 번째 제품"} 소개 뒤`, image_type: "포장 사진", caption: `${selectedProducts[1]?.product_name ?? "제품"} 포장 사진` },
+    { position: `${selectedProducts[1]?.product_name ?? "두 번째 제품"} 소개 뒤`, image_type: "전달 장면 사진", caption: `${selectedProducts[1]?.product_name ?? "제품"}이 어울리는 전달 장면 사진` },
   ].slice(0, Math.max(parsed.length, 3)) as BlogDraftOutput["image_guide"];
 }
 
@@ -2897,6 +2965,7 @@ function EditorView({
         mainKeyword={input.main_keyword}
         candidates={currentOutput.title_candidates}
         evaluations={currentOutput.title_analysis?.naver}
+        candidateGroups={currentOutput.title_analysis?.candidate_groups.naver}
         selectedTitle={currentOutput.selected_title}
         onSelect={(title) => {
           const next = { ...currentOutput, selected_title: title };
@@ -2971,7 +3040,7 @@ function EditorView({
             type="button"
             variant="secondary"
             className="h-8 px-2 text-[12px]"
-            onClick={() => void regenerateSections(["empathy"], "선택 기준 3개를 수량, 포장, 문구 중심으로 추가하기")}
+            onClick={() => void regenerateSections(["empathy"], "입력된 상황과 사진에서 드러난 선택 기준 3개를 추가하기")}
           >
             선택 기준 3개
           </Button>
@@ -3070,6 +3139,7 @@ function WordPressEditor({
         mainKeyword={input.main_keyword}
         candidates={wordpress.title_candidates}
         evaluations={output.title_analysis?.wordpress}
+        candidateGroups={output.title_analysis?.candidate_groups.wordpress}
         selectedTitle={wordpress.selected_title}
         onSelect={updateWordPressTitle}
         onRefresh={refreshWordPressTitles}

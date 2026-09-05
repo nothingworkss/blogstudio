@@ -1,7 +1,7 @@
 import type { BlogDraftInput, BlogDraftOutput, DraftQualityCheck, WordPressDraftOutput } from "@/types/blog";
 import type { ImageObservation } from "@/types/image";
 import type { Brand, Product, ProductRecommendation } from "@/types/product";
-import { analyzeReferencePatternFit, getReferenceSafetyWarnings, referencePatternPayload } from "@/lib/reference/blog-patterns";
+import { analyzeReferencePatternFit, getReferenceSafetyWarnings } from "@/lib/reference/blog-patterns";
 import {
   ensureRecommendationEditorialDefaults,
   formatProductRecommendationBody,
@@ -9,22 +9,9 @@ import {
 } from "@/lib/product/editorial";
 import { formatMarkdownForWordPress, formatPlainTextForNaver } from "@/lib/utils/copyFormat";
 import { applySeoSectionHeadings, buildWordPressSectionHeadings } from "@/lib/utils/seoHeadings";
+import { deriveContentAngle } from "@/lib/content/angle";
 import { buildLocalTitleCandidates, buildLocalTitlePackage, getTitleWarnings, normalizeTitleResult, type TitleResult } from "@/lib/title-workflow";
 import { selectProductsByScore } from "./selectProducts";
-
-export function fallbackObserveImages(imageUrls: string[]): ImageObservation[] {
-  return imageUrls.map((imageUrl, index) => ({
-    image_url: imageUrl,
-    visible_products: ["쿠키 또는 구움과자"],
-    packaging: index % 2 === 0 ? "개별 포장 또는 접시 위 완성품으로 보입니다." : "선물용 포장 사진으로 활용하기 좋습니다.",
-    colors: ["브라운", "크림", "화이트"],
-    visible_text: [],
-    quantity: "사진만으로 정확한 수량은 단정하지 않습니다.",
-    mood: "담백하고 따뜻한 수제 디저트 분위기",
-    caption: "완성된 제품의 질감과 포장 분위기를 함께 보여주는 사진",
-    cautions: ["사진만 보고 맛, 향, 판매량, 고객 반응을 단정하지 않기"],
-  }));
-}
 
 export function fallbackSelectProducts(
   input: BlogDraftInput,
@@ -45,7 +32,7 @@ export function fallbackSelectProducts(
           reason: reasons[0] ?? `${input.topic} 상황과 제품 키워드가 맞닿아 있습니다.`,
           angle: product.default_intro ?? `${input.topic}에 맞는 선물 포인트`,
           main_points: product.strengths.slice(0, 3),
-          caution: product.cautions[0] ?? "일정과 수량은 주문 전 확인이 필요합니다.",
+          caution: product.cautions[0] ?? "필요한 시점과 선택 기준은 주문 전 확인이 필요합니다.",
           summary: {
             recommended_situation: "",
             one_line_point: "",
@@ -71,11 +58,11 @@ export function fallbackGenerateBlog(params: {
 }): BlogDraftOutput {
   const { input, selectedProducts, observations } = params;
   const [first, second] = selectedProducts.map((product) => ensureRecommendationEditorialDefaults(product, input));
-  const subKeywordText = input.sub_keywords.length ? input.sub_keywords.join(", ") : "상황에 맞는 쿠키 선물";
   const titleBase = input.main_keyword || input.topic;
   const cta = input.cta || params.brand.default_cta;
-  const referencePattern = referencePatternPayload(input.reference_style);
-  const titleObject = withObjectParticle(titleBase);
+  const contentAngle = deriveContentAngle(input, selectedProducts);
+  const targetReader = input.target_reader || "선물을 준비하는 사람";
+  const imageObservationLead = buildImageObservationLead(observations);
   const titlePlan = buildLocalTitlePackage(input, selectedProducts);
   const naverTitles = normalizeTitleResult({
     channel: "naver",
@@ -89,7 +76,7 @@ export function fallbackGenerateBlog(params: {
   const outputWithoutPlain = {
     title_candidates: titleCandidates,
     selected_title: naverTitles.selected_title,
-    search_intent: `${titleBase}를 찾는 사람은 부담스럽지 않으면서도 상황에 맞는 선물과 주문 전 확인할 내용을 함께 알고 싶어합니다.`,
+    search_intent: `${titleBase}를 찾는 ${targetReader}은 ${contentAngle.coreQuestion} 알고 싶어합니다.`,
     selected_products: selectedProducts,
     sections: [
       {
@@ -98,24 +85,20 @@ export function fallbackGenerateBlog(params: {
         heading: "도입부",
         body: [
           `안녕하세요. nothingmatters입니다.`,
-          `${input.topic}을 준비하다 보면 생각보다 먼저 고민되는 부분이 있어요.`,
-          `수량은 어느 정도가 좋을지, 문구를 넣어야 할지, 포장은 너무 과하지 않을지 한 번에 정하기가 어렵거든요.`,
-          `오늘은 ${referencePattern.style} 방식으로 ${titleBase}에 어울리는 제품 2가지만 좁혀서 정리해볼게요.`,
-        ].join("\n\n"),
+          input.situation || `${withSubjectParticle(targetReader)} ${withObjectParticle(titleBase)} 준비하는 상황이에요.`,
+          imageObservationLead,
+          contentAngle.introLead,
+          `오늘은 ${contentAngle.coreQuestion} 중심으로 제품 2가지를 나누어 볼게요.`,
+        ].filter(Boolean).join("\n\n"),
       },
       {
         id: "empathy",
         type: "empathy" as const,
         heading: "상황 공감",
         body: [
-          input.situation || `${input.topic}은 받는 사람도, 준비하는 사람도 부담이 크지 않아야 좋은 선물입니다.`,
-          input.raw_memo || "짧은 문구와 포장 분위기까지 함께 생각하면 조금 더 기억에 남는 답례품이 될 수 있어요.",
-          "그래서 고를 때는 제품 자체보다도 전달하는 상황을 먼저 보면 좋습니다.",
-          formatBulletList([
-            "몇 명에게 나눠야 하는지",
-            "행사일이나 전달일이 언제인지",
-            "문구나 이름처럼 남기고 싶은 포인트가 있는지",
-          ]),
+          input.raw_memo || `${contentAngle.coreQuestion}부터 정리하면 제품을 고르는 순서도 더 자연스러워집니다.`,
+          "그래서 제품 이름보다 먼저 지금 건네는 장면을 살펴보는 편이 좋아요.",
+          formatBulletList(contentAngle.decisionAxes),
         ].join("\n\n"),
       },
       {
@@ -143,11 +126,8 @@ export function fallbackGenerateBlog(params: {
         type: "recommend_list" as const,
         heading: "이런 분들께 좋아요",
         body: formatBulletList([
-          `${titleObject} 준비하지만 너무 과한 선물은 피하고 싶은 분`,
-          `${subKeywordText}까지 함께 고민하는 분`,
-          "여러 명에게 깔끔하게 나눠야 하는 분",
-          "짧은 문구나 포장 포인트를 함께 상담하고 싶은 분",
-          "사진으로 구성과 분위기를 자연스럽게 보여주고 싶은 분",
+          ...contentAngle.readerSignals,
+          `${targetReader}처럼 제품보다 전달할 순간을 먼저 정리하고 싶은 분`,
         ]),
       },
       {
@@ -156,15 +136,9 @@ export function fallbackGenerateBlog(params: {
         heading: "주문 전 체크포인트",
         body: [
           "문의하실 때는 길게 설명하지 않으셔도 괜찮아요.",
-          "아래 정보만 먼저 보내주시면 가능한 구성을 더 빠르게 정리할 수 있습니다.",
-          formatBulletList([
-            "필요한 날짜 또는 수령 희망일",
-            "예상 수량",
-            "넣고 싶은 문구",
-            "원하는 포장 방식",
-            "픽업 또는 차량 퀵 필요 여부",
-          ]),
-          "문구가 아직 정해지지 않았다면 상황만 먼저 알려주셔도 방향을 같이 잡아드릴게요.",
+          "아래 내용만 먼저 알려주시면 상황에 맞는 쪽으로 더 빠르게 좁혀볼 수 있습니다.",
+          formatBulletList(contentAngle.orderChecks),
+          "아직 하나가 정해지지 않았다면 지금 고민되는 장면만 알려주셔도 괜찮아요.",
         ].join("\n\n"),
       },
       {
@@ -172,24 +146,24 @@ export function fallbackGenerateBlog(params: {
         type: "cta" as const,
         heading: "마무리",
         body: [
-          `${input.topic}은 크기보다 건네는 순간의 분위기가 더 오래 남는 선물일 때가 많아요.`,
-          "nothingmatters는 상황에 맞는 문구와 구성을 함께 보면서 너무 과하지 않은 쪽으로 기준을 잡고 있어요.",
+          `${input.topic}${topicParticle(input.topic)} ${withSubjectParticle(contentAngle.decisionAxes[0])} 먼저 잡히면 선택도 한결 편해질 때가 많아요.`,
+          `nothingmatters는 ${withObjectParticle(joinWithAnd(contentAngle.decisionAxes.slice(0, 2)))} 함께 보면서 너무 과하지 않은 쪽으로 방향을 잡고 있어요.`,
           cta,
         ].join("\n\n"),
       },
     ],
     faq: [
       {
-        q: `${input.topic}으로 어떤 제품이 제일 잘 맞나요?`,
-        a: `짧은 문구가 중요하면 ${first.product_name}, 조금 더 가볍게 전하고 싶다면 ${second.product_name}도 잘 어울립니다.`,
+        q: `${withObjectParticle(input.topic)} 고를 때 무엇부터 보면 좋을까요?`,
+        a: `${withObjectParticle(joinWithAnd(contentAngle.decisionAxes.slice(0, 2)))} 먼저 정한 뒤, ${joinWithAnd([first.product_name, second.product_name])} 중 더 맞는 쪽을 나누어 보면 편해요.`,
       },
       {
-        q: "문구를 넣을 수 있나요?",
-        a: "제품과 일정에 따라 가능 여부가 달라질 수 있어 필요한 날짜와 수량을 먼저 보면 좋아요.",
+        q: "두 제품은 어떻게 나누어 보면 좋을까요?",
+        a: `${joinWithAnd([first.product_name, second.product_name])}은 누가 받는지와 어떤 장면으로 전할지에 따라 나누어 보면 좋아요.`,
       },
       {
-        q: "단체 주문은 어떻게 문의하면 되나요?",
-        a: "날짜, 수량, 원하는 제품을 알려주시면 확인이 빠릅니다.",
+        q: "준비 전에 어떤 내용을 알려주면 좋을까요?",
+        a: `${contentAngle.orderChecks.slice(0, 3).join(", ")} 정도를 먼저 알려주시면 확인이 빨라집니다.`,
       },
       {
         q: "배송도 가능한가요?",
@@ -222,22 +196,22 @@ export function fallbackGenerateBlog(params: {
       {
         position: `${first.product_name} 소개 뒤`,
         image_type: "제품 디테일",
-        caption: `${first.product_name}의 문구나 질감이 보이는 사진을 배치하세요.`,
+        caption: `${first.product_name}의 선택 포인트가 보이는 사진을 배치하세요.`,
       },
       {
         position: `${second.product_name} 소개 뒤`,
-        image_type: "포장 사진",
-        caption: `${second.product_name}을 선물로 받는 느낌이 보이도록 배치하세요.`,
+        image_type: "전달 장면 사진",
+        caption: `${second.product_name}이 어떤 장면에 어울리는지 보여주는 사진을 배치하세요.`,
       },
       {
         position: "주문 전 체크포인트 앞",
-        image_type: "수량 또는 포장 방식",
-        caption: "여러 개를 함께 놓아 수량감과 전달 방식을 보여주세요.",
+        image_type: "선택 기준 사진",
+        caption: `${contentAngle.decisionAxes[0]} 쪽이 드러나는 사진을 배치하세요.`,
       },
       {
         position: "마무리 CTA 앞",
-        image_type: "전체 구성",
-        caption: "문의 전에 확인하면 좋은 구성과 분위기를 한 장으로 정리하세요.",
+        image_type: "마무리 장면",
+        caption: `${contentAngle.ctaLead} 자연스럽게 이어지는 사진을 배치하세요.`,
       },
     ],
   };
@@ -262,6 +236,10 @@ export function fallbackGenerateBlog(params: {
     title_analysis: {
       naver: serializeTitleEvaluations(titlePlan.naver),
       wordpress: serializeTitleEvaluations(titlePlan.wordpress),
+      candidate_groups: {
+        naver: titlePlan.naver.candidateGroups,
+        wordpress: titlePlan.wordpress.candidateGroups,
+      },
     },
   };
 }
@@ -294,6 +272,9 @@ function buildFallbackWordPressOutput({
   observations: ImageObservation[];
 }): WordPressDraftOutput {
   const keyword = input.main_keyword || input.topic;
+  const contentAngle = deriveContentAngle(input, [first, second]);
+  const targetReader = input.target_reader || "선물을 준비하는 사람";
+  const imageObservationLead = buildImageObservationLead(observations);
   const sectionHeadings = buildWordPressSectionHeadings(input, [first, second]);
   const titles = normalizeTitleResult({
     channel: "wordpress",
@@ -309,68 +290,54 @@ function buildFallbackWordPressOutput({
       id: "wp-intro",
       heading: sectionHeadings[0],
       body: [
-        `${keyword}을 준비할 때는 제품 이름보다 먼저 수량, 전달하는 날, 문구가 필요한지부터 보게 돼요.`,
-        `제가 ${input.topic} 문의를 볼 때도 이 기준이 잡혀 있으면 구성이 훨씬 자연스럽게 좁혀집니다.`,
-      ].join("\n\n"),
+        `${withObjectParticle(keyword)} 준비할 때는 ${contentAngle.coreQuestion}부터 정리하면 선택이 훨씬 자연스러워져요.`,
+        `${targetReader}처럼 전달할 장면이 분명하면 제품을 고르는 이유도 더 또렷해집니다.`,
+        imageObservationLead,
+      ].filter(Boolean).join("\n\n"),
     },
     {
       id: "wp-empathy",
       heading: sectionHeadings[1],
-      body: formatBulletList([
-        "받는 사람 수에 맞는 수량 기준",
-        "짧은 문구나 이름을 담을 필요가 있는지",
-        "개별 포장과 전달 방식이 자연스러운지",
-        "행사일 또는 수령 희망일에 맞출 수 있는지",
-      ]),
+      body: formatBulletList(contentAngle.decisionAxes),
     },
     {
       id: "wp-product-1",
       heading: sectionHeadings[2],
       body: [
-        `문구나 날짜처럼 남기고 싶은 포인트가 있으면 저는 <mark style="background: linear-gradient(transparent 60%, #fff3a3 60%); padding: 0 0.08em;">${first.product_name} 쪽으로 먼저 기준을 잡아요</mark>.`,
-        `${input.situation || input.topic}처럼 전달할 장면이 정해져 있으면 문구 길이와 날짜를 먼저 보는 편이 안전합니다.`,
-        `${second.product_name}와 비교하면, ${first.product_name}은 남기고 싶은 말이 있을 때 기준을 잡기 쉬워요.`,
+        `<mark style="background: linear-gradient(transparent 60%, #fff3a3 60%); padding: 0 0.08em;">${withSubjectParticle(first.product_name)} ${contentAngle.decisionAxes[0]} 쪽을 먼저 생각할 때 보기 좋아요</mark>.`,
+        first.owner_comment || `${input.situation || input.topic}에 맞는 선택 포인트를 먼저 보면 좋아요.`,
+        `${withObjectParticle(second.product_name)} 비교하면, ${withSubjectParticle(first.product_name)} ${contentAngle.decisionAxes[1]} 쪽을 더 또렷하게 보고 싶을 때 기준을 잡기 쉬워요.`,
       ].join("\n\n"),
     },
     {
       id: "wp-product-2",
       heading: sectionHeadings[3],
       body: [
-        `<mark style="background: linear-gradient(transparent 60%, #fff3a3 60%); padding: 0 0.08em;">${second.product_name}은 마음을 너무 무겁게 만들지 않고 전하고 싶을 때 보기 편해요</mark>.`,
-        `${first.product_name}이 문구와 기념 포인트 쪽이라면, ${second.product_name}은 가볍게 나누는 기준으로 보면 좋습니다.`,
-        "둘 중 하나가 더 낫다기보다, 어떤 마음을 어느 정도의 무게로 전하고 싶은지에 따라 나누면 글도 덜 광고처럼 읽혀요.",
+        `<mark style="background: linear-gradient(transparent 60%, #fff3a3 60%); padding: 0 0.08em;">${withSubjectParticle(second.product_name)} ${contentAngle.decisionAxes[1]} 쪽을 가볍게 풀고 싶을 때 보기 편해요</mark>.`,
+        second.owner_comment || `${input.situation || input.topic}에 맞는 전달 방식을 먼저 생각해 보면 좋아요.`,
+        `둘 중 하나가 더 낫다기보다, ${withObjectParticle(joinWithAnd(contentAngle.decisionAxes.slice(0, 2)))} 어디에 두고 싶은지에 따라 나누면 됩니다.`,
       ].join("\n\n"),
     },
     {
       id: "wp-recommend-list",
       heading: sectionHeadings[4],
-      body: formatBulletList([
-        `${keyword}을 준비하지만 기준이 아직 흐릿한 분`,
-        "수량, 문구, 포장을 한 번에 정리하고 싶은 분",
-        "네이버와 다른 워드프레스용 정보 글이 필요한 분",
-      ]),
+      body: formatBulletList(contentAngle.readerSignals),
     },
     {
       id: "wp-order-checklist",
       heading: sectionHeadings[5],
-      body: formatBulletList([
-        "필요한 날짜 또는 수령 희망일",
-        "예상 수량",
-        "넣고 싶은 문구와 길이",
-        "포장 방식",
-        "픽업 또는 차량 퀵 필요 여부",
-      ]),
+      body: formatBulletList(contentAngle.orderChecks),
     },
     {
       id: "wp-cta",
       heading: sectionHeadings[6],
-      body: input.cta || "필요한 날짜와 수량만 먼저 알려주셔도 괜찮아요. 어떤 구성이 편할지는 그 기준을 보고 같이 좁혀볼게요.",
+      body: input.cta || `${contentAngle.ctaLead} 어떤 쪽이 더 자연스러운지 같이 좁혀볼게요.`,
     },
   ];
   const faq = [
     {
-      q: `${keyword}으로 어떤 쿠키 구성을 먼저 보면 좋을까요?`,
-      a: `문구와 기념 포인트가 중요하면 ${first.product_name}, 가볍게 마음을 전하고 싶다면 ${second.product_name}를 기준으로 나눠 보면 편해요.`,
+      q: `${withObjectParticle(keyword)} 고를 때 무엇부터 보면 좋을까요?`,
+      a: `${withObjectParticle(joinWithAnd(contentAngle.decisionAxes.slice(0, 2)))} 먼저 정한 뒤, ${withObjectParticle(joinWithAnd([first.product_name, second.product_name]))} 나누어 보면 편해요.`,
     },
     {
       q: "워드프레스 글에는 해시태그를 넣어야 하나요?",
@@ -389,8 +356,8 @@ function buildFallbackWordPressOutput({
     title_candidates: titleCandidates,
     selected_title: selectedTitle,
     slug: slugifyKoreanAware(keyword),
-    meta_description: `${keyword}을 준비할 때 확인하면 좋은 수량, 문구, 포장 기준과 ${first.product_name}, ${second.product_name} 선택 기준을 정리했습니다.`,
-    excerpt: `${keyword}을 고를 때 제가 먼저 보는 수량, 문구, 포장 기준을 정리한 글입니다.`,
+    meta_description: `${withObjectParticle(keyword)} 준비할 때 ${withObjectParticle(joinWithAnd(contentAngle.decisionAxes.slice(0, 2)))} 먼저 정리하고 ${withObjectParticle(joinWithAnd([first.product_name, second.product_name]))} 나누어 보는 방법을 담았습니다.`,
+    excerpt: `${keyword}에서 ${contentAngle.coreQuestion} 먼저 정리하는 정보형 글입니다.`,
     focus_keyword: keyword,
     secondary_keywords: [
       ...input.sub_keywords,
@@ -421,14 +388,14 @@ function buildFallbackWordPressOutput({
       {
         position: `${first.product_name} 기준 설명 뒤`,
         image_type: "제품 디테일",
-        caption: `${first.product_name}의 문구나 디테일이 보이는 사진`,
-        alt_text: `${keyword} ${first.product_name} 문구 디테일 사진`,
+        caption: `${first.product_name}의 선택 포인트가 보이는 사진`,
+        alt_text: `${keyword} ${first.product_name} 제품 디테일 사진`,
       },
       {
         position: `${second.product_name} 기준 설명 뒤`,
-        image_type: "포장 사진",
-        caption: `${second.product_name}의 포장과 전달 분위기를 보여주는 사진`,
-        alt_text: `${keyword} ${second.product_name} 포장 사진`,
+        image_type: "전달 장면 사진",
+        caption: `${second.product_name}이 어떤 장면에 어울리는지 보여주는 사진`,
+        alt_text: `${keyword} ${second.product_name} 전달 장면 사진`,
       },
     ],
     markdown_for_wordpress: "",
@@ -477,16 +444,47 @@ function formatBulletList(items: string[]) {
   return items.filter(Boolean).map((item) => `✅ ${item}`).join("\n");
 }
 
-function withObjectParticle(value: string) {
-  return `${value}${hasFinalConsonant(value) ? "을" : "를"}`;
-}
-
 function hasFinalConsonant(value: string) {
   const char = value.trim().at(-1);
   if (!char) return false;
   const code = char.charCodeAt(0);
   if (code < 0xac00 || code > 0xd7a3) return false;
   return (code - 0xac00) % 28 !== 0;
+}
+
+function withObjectParticle(value: string) {
+  return `${value}${hasFinalConsonant(value) ? "을" : "를"}`;
+}
+
+function withSubjectParticle(value: string) {
+  return `${value}${hasFinalConsonant(value) ? "이" : "가"}`;
+}
+
+function topicParticle(value: string) {
+  return hasFinalConsonant(value) ? "은" : "는";
+}
+
+function joinWithAnd(values: string[]) {
+  return values.filter(Boolean).reduce((joined, value) => {
+    if (!joined) return value;
+    return `${joined}${hasFinalConsonant(joined) ? "과" : "와"} ${value}`;
+  }, "");
+}
+
+function buildImageObservationLead(observations: ImageObservation[]) {
+  const observation = observations[0];
+  if (!observation) return "";
+
+  const details = [
+    observation.visible_products.filter(Boolean).slice(0, 2).join(", "),
+    observation.colors.length ? `${observation.colors.slice(0, 3).join(", ")} 톤` : "",
+    observation.visible_text.length ? `보이는 문구 ${observation.visible_text.slice(0, 2).join(", ")}` : "",
+    observation.mood,
+  ].filter(Boolean);
+
+  return details.length
+    ? `사진에서는 ${details.join(" / ")}이 확인됩니다. 이 보이는 요소를 기준으로 글의 설명을 이어갈게요.`
+    : "";
 }
 
 export function fallbackCheckDraft(output: BlogDraftOutput, forbiddenWords: string[] = []): DraftQualityCheck {
@@ -542,7 +540,7 @@ export function fallbackCheckDraft(output: BlogDraftOutput, forbiddenWords: stri
       "메인 키워드가 제목과 도입부에 자연스럽게 들어갔는지 확인하세요.",
       "네이버는 검색 순간의 현실 고민, 워드프레스는 오래 참고할 선택 정보를 제목에서 약속하는지 확인하세요.",
       "예제 글의 원문 문장이나 다른 브랜드 흔적은 구조 분석용으로만 쓰고 본문에서는 제거하세요.",
-      "이미지 가이드는 대표컷, 디테일컷, 포장컷, 수량컷이 분리되었는지 확인하세요.",
+      "이미지 가이드는 대표컷, 제품 디테일, 전달 장면, 선택 기준이 보이는 컷이 나뉘었는지 확인하세요.",
     ],
   };
 }

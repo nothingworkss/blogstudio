@@ -1,5 +1,6 @@
 import type { BlogDraftInput } from "@/types/blog";
 import type { ProductRecommendation } from "@/types/product";
+import { deriveContentAngle } from "@/lib/content/angle";
 
 export function buildSeoSectionHeadings(
   input: BlogDraftInput,
@@ -10,15 +11,16 @@ export function buildSeoSectionHeadings(
   ]).filter(Boolean);
   const firstProduct = selectedProducts[0]?.product_name || "첫 번째 쿠키";
   const secondProduct = selectedProducts[1]?.product_name || "두 번째 쿠키";
+  const angle = deriveContentAngle(input, selectedProducts);
 
   return [
-    "처음 고를 때 보는 기준",
-    optionalKeywordHeading(keywords[0], "수량과 포장이 고민될 때"),
+    angle.decisionHeading,
+    optionalKeywordHeading(keywords[0], angle.decisionAxes[0]),
     productSectionHeading(selectedProducts[0], firstProduct),
     productSectionHeading(selectedProducts[1], secondProduct),
-    optionalKeywordHeading(keywords[1], "이런 상황이라면 좋아요"),
-    "주문 전 확인하면 좋은 것",
-    "문의 전 마지막으로 정리할 점",
+    optionalKeywordHeading(keywords[1], angle.readerHeading),
+    angle.checkHeading,
+    "문의 전에 마지막으로 정리할 점",
   ];
 }
 
@@ -30,14 +32,15 @@ export function buildWordPressSectionHeadings(
   const subKeywords = uniqueKeywords(input.sub_keywords.map(cleanKeyword)).filter(Boolean);
   const firstProduct = selectedProducts[0]?.product_name || "첫 번째 쿠키";
   const secondProduct = selectedProducts[1]?.product_name || "두 번째 쿠키";
+  const angle = deriveContentAngle(input, selectedProducts);
   const headings = [
-    `${mainKeyword} 선택 전에 먼저 볼 기준`,
-    optionalKeywordHeading(subKeywords[0], "수량·일정·문구를 정하는 순서"),
-    `${firstProduct}이 편한 상황과 선택 포인트`,
-    `${secondProduct}이 편한 상황과 비교 기준`,
+    `${mainKeyword}, ${angle.decisionHeading}`,
+    optionalKeywordHeading(subKeywords[0], angle.decisionAxes[0]),
+    `${firstProduct} 선택이 편한 상황과 포인트`,
+    `${secondProduct} 선택이 편한 상황과 비교 기준`,
     optionalKeywordHeading(subKeywords[1], "두 제품 사이에서 기준을 좁히는 법"),
-    "문의 전에 준비할 다섯 가지",
-    "날짜와 수량부터 가볍게 정리하기",
+    angle.checkHeading,
+    "문의 전에 마지막으로 정리할 점",
   ];
   const prefixes = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣"];
   return headings.map((heading, index) => `${prefixes[index]} ${heading}`);

@@ -162,6 +162,10 @@ export const blogDraftOutputSchema = naverDraftOutputSchema.extend({
   title_analysis: z.object({
     naver: z.array(titleEvaluationRecordSchema),
     wordpress: z.array(titleEvaluationRecordSchema),
+    candidate_groups: z.object({
+      naver: z.array(titleCandidateGroupSchema),
+      wordpress: z.array(titleCandidateGroupSchema),
+    }).default({ naver: [], wordpress: [] }),
   }).optional(),
 });
 

@@ -33,10 +33,16 @@ export type TitleEvaluation = {
   reason: string;
 };
 
+export type TitleCandidateGroup = {
+  type: TitleIdeaType;
+  titles: string[];
+};
+
 export type TitleResult = {
   candidates: string[];
   selectedTitle: string;
   evaluations: TitleEvaluation[];
+  candidateGroups: TitleCandidateGroup[];
 };
 
 export type TitlePackage = {
@@ -189,8 +195,8 @@ export function parseTitlePackage(value: string): TitlePackage {
 
   const candidates = cleanParsedTitleCandidates(parseListedTitleCandidates(cleaned)).slice(0, 5);
   return {
-    naver: { candidates, selectedTitle: candidates[0] ?? "", evaluations: [] },
-    wordpress: { candidates: [], selectedTitle: "", evaluations: [] },
+    naver: { candidates, selectedTitle: candidates[0] ?? "", evaluations: [], candidateGroups: [] },
+    wordpress: { candidates: [], selectedTitle: "", evaluations: [], candidateGroups: [] },
   };
 }
 
@@ -375,6 +381,7 @@ function buildLocalTitleResult(
       .slice()
       .sort((left, right) => totalTitleScore(right) - totalTitleScore(left))[0]?.title ?? candidates[0] ?? "",
     evaluations,
+    candidateGroups: titleIdeaTypes.map((type) => ({ type, titles: pool[type] })),
   };
 }
 
@@ -401,8 +408,9 @@ function normalizeTitlePackageChannel(
     ?? createLocalTitleEvaluation(title, titleIdeaTypes[index] ?? "정보형", topic),
   );
   const selectedTitle = normalized.selected_title;
+  const candidateGroups = normalizeCandidateGroups(raw.candidateGroups, fallback.candidateGroups);
 
-  return { candidates: normalized.title_candidates, selectedTitle, evaluations };
+  return { candidates: normalized.title_candidates, selectedTitle, evaluations, candidateGroups };
 }
 
 function createLocalTitleEvaluation(title: string, type: TitleIdeaType, topic: TitleTopic): TitleEvaluation {
@@ -620,8 +628,8 @@ function readTitlePackage(value: unknown): TitlePackage {
   if (Array.isArray(value)) {
     const candidates = cleanParsedTitleCandidates(value.map(String)).slice(0, 5);
     return {
-      naver: { candidates, selectedTitle: candidates[0] ?? "", evaluations: [] },
-      wordpress: { candidates: [], selectedTitle: "", evaluations: [] },
+      naver: { candidates, selectedTitle: candidates[0] ?? "", evaluations: [], candidateGroups: [] },
+      wordpress: { candidates: [], selectedTitle: "", evaluations: [], candidateGroups: [] },
     };
   }
   if (!value || typeof value !== "object") return emptyTitlePackage();
@@ -630,7 +638,7 @@ function readTitlePackage(value: unknown): TitlePackage {
   if (!("naver" in raw || "wordpress" in raw)) {
     const naver = readTitleResult(raw);
     return naver.candidates.length
-      ? { naver, wordpress: { candidates: [], selectedTitle: "", evaluations: [] } }
+      ? { naver, wordpress: { candidates: [], selectedTitle: "", evaluations: [], candidateGroups: [] } }
       : emptyTitlePackage();
   }
 
@@ -643,11 +651,12 @@ function readTitlePackage(value: unknown): TitlePackage {
 function readTitleResult(value: unknown): TitleResult {
   if (Array.isArray(value)) {
     const candidates = cleanParsedTitleCandidates(value.map(String)).slice(0, 5);
-    return { candidates, selectedTitle: candidates[0] ?? "", evaluations: [] };
+    return { candidates, selectedTitle: candidates[0] ?? "", evaluations: [], candidateGroups: [] };
   }
-  if (!value || typeof value !== "object") return { candidates: [], selectedTitle: "", evaluations: [] };
+  if (!value || typeof value !== "object") return { candidates: [], selectedTitle: "", evaluations: [], candidateGroups: [] };
 
   const raw = value as Record<string, unknown>;
+  const candidateGroups = readTitleCandidateGroups(raw.candidate_groups);
   const evaluations = readTitleEvaluations(raw.ranked_candidates);
   const candidates = cleanParsedTitleCandidates([
     ...evaluations.map((item) => item.title),
@@ -658,6 +667,7 @@ function readTitleResult(value: unknown): TitleResult {
     candidates,
     selectedTitle: candidates.includes(selectedTitle) ? selectedTitle : candidates[0] ?? "",
     evaluations: evaluations.filter((item) => candidates.includes(item.title)),
+    candidateGroups,
   };
 }
 
@@ -697,6 +707,26 @@ function readTitleEvaluations(value: unknown): TitleEvaluation[] {
     .filter((item): item is TitleEvaluation => Boolean(item));
 }
 
+function readTitleCandidateGroups(value: unknown): TitleCandidateGroup[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const raw = item as Record<string, unknown>;
+      if (!isTitleIdeaType(raw.type)) return null;
+      const titles = cleanParsedTitleCandidates(readCandidateArray(raw.titles));
+      return titles.length === 5 ? { type: raw.type, titles } : null;
+    })
+    .filter((item): item is TitleCandidateGroup => Boolean(item));
+}
+
+function normalizeCandidateGroups(raw: TitleCandidateGroup[], fallback: TitleCandidateGroup[]) {
+  const types = new Set(raw.map((group) => group.type));
+  return raw.length === titleIdeaTypes.length && types.size === titleIdeaTypes.length
+    ? raw
+    : fallback;
+}
+
 function isTitleIdeaType(value: unknown): value is TitleIdeaType {
   return typeof value === "string" && titleIdeaTypes.includes(value as TitleIdeaType);
 }
@@ -720,8 +750,8 @@ function parseListedTitleCandidates(value: string) {
 
 function emptyTitlePackage(): TitlePackage {
   return {
-    naver: { candidates: [], selectedTitle: "", evaluations: [] },
-    wordpress: { candidates: [], selectedTitle: "", evaluations: [] },
+    naver: { candidates: [], selectedTitle: "", evaluations: [], candidateGroups: [] },
+    wordpress: { candidates: [], selectedTitle: "", evaluations: [], candidateGroups: [] },
   };
 }
 

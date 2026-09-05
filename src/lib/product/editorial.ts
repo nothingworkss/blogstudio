@@ -7,6 +7,7 @@ import type {
 } from "@/types/product";
 import { normalizeCheckBullets } from "@/lib/utils/copyFormat";
 import { includesLoose, normalizeForMatch } from "@/lib/utils/strings";
+import { deriveContentAngle } from "@/lib/content/angle";
 
 type EditorialField = keyof ProductEditorialProfile;
 type SummaryField = keyof ProductRecommendationSummary;
@@ -76,9 +77,9 @@ export function ensureRecommendationEditorialDefaults(
   const summary = recommendation.summary ?? {
     recommended_situation: input.topic || "추천 상황 확인 필요",
     one_line_point: recommendation.angle || "제품 한줄 포인트 확인 필요",
-    message_point: "문구 적용 여부는 상담 시 확인이 필요합니다.",
-    packaging_mood: "포장 방식은 수량과 전달 상황에 맞춰 상담이 필요합니다.",
-    order_check: recommendation.caution || "필요한 날짜와 수량을 먼저 확인합니다.",
+    message_point: "전하고 싶은 포인트는 상담 시 함께 정리할 수 있습니다.",
+    packaging_mood: "전달 장면에 맞는 방식은 상담 시 함께 정리할 수 있습니다.",
+    order_check: recommendation.caution || "지금 정해야 하는 한 가지를 먼저 확인합니다.",
   };
 
   return {
@@ -126,7 +127,7 @@ export function hydrateRecommendation(
     reason: recommendation.reason || `${input.topic} 상황에서 선택 기준을 잡기 쉽습니다.`,
     angle: recommendation.angle || product.default_intro || `${input.topic}에 맞는 추천 포인트`,
     main_points: recommendation.main_points?.length ? recommendation.main_points : product.strengths.slice(0, 3),
-    caution: recommendation.caution || product.cautions[0] || "필요한 날짜와 수량은 주문 전 확인이 필요합니다.",
+    caution: recommendation.caution || product.cautions[0] || "필요한 시점과 선택 기준은 주문 전 확인이 필요합니다.",
     summary,
     owner_comment: ownerComment,
     missing_info: missingInfo,
@@ -170,7 +171,7 @@ export function formatProductRecommendationBody({
     `이 구성이 편한 건 ${specificSituationPhrase(input, recommendation)}예요.`,
     `제품 자랑을 먼저 하기보다, 받는 사람이 어떤 순간에 이 쿠키를 받게 될지부터 보면 고르기 편합니다.`,
     `✅ ${otherPhrase}`,
-    `문의하실 때는 ${orderCheckPhrase(recommendation)}`,
+    `문의하실 때는 ${orderCheckPhrase(input, recommendation)}`,
     recommendation.missing_info.length
       ? `✅ 아직 자료가 비어 있는 부분은 ${recommendation.missing_info.join(", ")}입니다. 이 부분은 구성에 따라 달라질 수 있어 문의 때 확인하는 쪽이 안전합니다.`
       : "",
@@ -245,11 +246,9 @@ function pickEditorialValue({
   if (key === "one_line_point") {
     return contextCompatibleText(product.default_intro, input) || product.short_description || "제품 한줄 포인트 확인 필요";
   }
-  if (key === "message_point") {
-    return hasProductMarker(product, "문구") ? "짧은 문구 포인트를 상담하면서 맞추기 좋습니다." : "문구 적용 여부는 상담 시 확인이 필요합니다.";
-  }
-  if (key === "packaging_mood") return "포장 방식은 수량과 전달 상황에 맞춰 상담이 필요합니다.";
-  return product.cautions[0] || "필요한 날짜와 수량을 먼저 확인합니다.";
+  if (key === "message_point") return "전하고 싶은 포인트는 상담 시 함께 정리할 수 있습니다.";
+  if (key === "packaging_mood") return "전달 장면에 맞는 방식은 상담 시 함께 정리할 수 있습니다.";
+  return product.cautions[0] || "지금 정해야 하는 한 가지를 먼저 확인합니다.";
 }
 
 function draftAnswer(input: BlogDraftInput, productName: string, key: EditorialField) {
@@ -291,8 +290,8 @@ function cleanSentence(value: string) {
   return trimmed ? `${trimmed}.` : "";
 }
 
-function orderCheckPhrase(recommendation: ProductRecommendation) {
-  const source = recommendation.summary.order_check || recommendation.caution || "필요한 날짜와 수량";
+function orderCheckPhrase(input: BlogDraftInput, recommendation: ProductRecommendation) {
+  const source = deriveContentAngle(input).orderChecks.slice(0, 3).join(", ") || recommendation.summary.order_check || recommendation.caution;
   return `${source.trim().replace(/[.。]+$/g, "")} 정도를 먼저 알려주시면 기준을 잡기 편해요.`;
 }
 
@@ -335,9 +334,9 @@ function specificSituationPhrase(input: BlogDraftInput, recommendation: ProductR
   if (context.includes("퇴사") && productName.includes("커스텀")) return "퇴사 마지막 날 팀원들에게 하나씩 건네면서, 짧은 문구를 남기고 싶을 때";
   if (context.includes("퇴사") && productName.includes("행운")) return "마지막 인사를 너무 무겁게 만들지 않고, 작은 응원처럼 건네고 싶을 때";
   if (context.includes("퇴사")) return "퇴사 마지막 날 여러 명에게 같은 기준으로 나눠야 할 때";
-  if (context.includes("어린이") || context.includes("유치원") || context.includes("어린이집")) return "아이들에게 하나씩 전해야 해서 귀여운 구성과 수량 기준을 같이 봐야 할 때";
+  if (context.includes("어린이") || context.includes("유치원") || context.includes("어린이집")) return "아이들이 받는 장면과 행사의 분위기를 함께 생각할 때";
   if (context.includes("스승") || context.includes("어버이") || context.includes("감사")) return "감사 인사는 전하고 싶지만 선물이 너무 무겁게 느껴지지 않았으면 할 때";
-  if (context.includes("결혼")) return "여러 분께 같은 느낌으로 나눠야 해서 포장과 수량이 먼저 정리되어야 할 때";
+  if (context.includes("결혼")) return "하객에게 어떤 분위기로 감사 인사를 전할지 먼저 정리할 때";
   const fallback = recommendation.summary.recommended_situation || input.situation || input.topic;
   return fallback ? `${fallback}을 기준으로 고를 때` : "받는 사람과 전달하는 날이 어느 정도 정해져 있을 때";
 }
@@ -382,13 +381,11 @@ function extractSituationContexts(value: string) {
 
 function contextualOwnerComment(product: Product, input: BlogDraftInput) {
   const keyword = input.main_keyword || input.topic || "이번 답례품";
+  const angle = deriveContentAngle(input);
   if (hasProductMarker(product, "문구") || product.name.includes("커스텀")) {
     return `${keyword}에서 이름이나 짧은 문구를 남기고 싶다면, 문구 길이와 전달할 말을 먼저 정하는 편이 자연스럽습니다.`;
   }
-  if (product.name.includes("수제쿠키") || product.category.includes("선물")) {
-    return `${keyword}에서 여러 명에게 나눌 구성이라면, 구성 수량과 포장 방식을 먼저 보는 편이 좋습니다.`;
-  }
-  return `${keyword}에 맞는 구성을 고를 때는 제품 이름보다 전달할 날짜, 수량, 포장 기준을 먼저 보면 정리하기 쉽습니다.`;
+  return `${keyword}에서는 ${withObjectParticle(joinWithAnd(angle.decisionAxes.slice(0, 2)))} 먼저 보면 제품을 고르는 이유가 더 또렷해집니다.`;
 }
 
 function shortSummarySentence(value: string) {
@@ -407,6 +404,17 @@ function hasFinalConsonant(value: string) {
   const code = lastChar.charCodeAt(0);
   if (code < 0xac00 || code > 0xd7a3) return false;
   return (code - 0xac00) % 28 !== 0;
+}
+
+function withObjectParticle(value: string) {
+  return `${value}${hasFinalConsonant(value) ? "을" : "를"}`;
+}
+
+function joinWithAnd(values: string[]) {
+  return values.filter(Boolean).reduce((joined, value) => {
+    if (!joined) return value;
+    return `${joined}${hasFinalConsonant(joined) ? "과" : "와"} ${value}`;
+  }, "");
 }
 
 function mergeUnique(values: string[]) {

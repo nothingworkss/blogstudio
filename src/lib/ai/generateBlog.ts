@@ -9,6 +9,7 @@ import { referencePatternPayload } from "@/lib/reference/blog-patterns";
 import { applyEditorialProductSections } from "@/lib/product/editorial";
 import { formatMarkdownForWordPress, formatPlainTextForNaver, normalizeCheckBullets } from "@/lib/utils/copyFormat";
 import { applySeoSectionHeadings } from "@/lib/utils/seoHeadings";
+import { deriveContentAngle } from "@/lib/content/angle";
 import { buildTitleGenerationPrompt, buildTitleTopic, normalizeTitlePackage, normalizeTitleResult, type TitleResult } from "@/lib/title-workflow";
 import { fallbackGenerateBlog } from "./fallbacks";
 import { runStructuredResponse } from "./openai";
@@ -20,6 +21,7 @@ export async function generateBlog(params: {
   observations: ImageObservation[];
 }) {
   const fallbackOutput = fallbackGenerateBlog(params);
+  const contentAngle = deriveContentAngle(params.input, params.selectedProducts);
   const titlePlanResponse = await runStructuredResponse({
     schema: titleGenerationOutputSchema,
     schemaName: "blog_title_generation_output",
@@ -44,6 +46,7 @@ export async function generateBlog(params: {
       selected_products: params.selectedProducts,
       image_observations: params.observations,
       reference_pattern: referencePatternPayload(params.input.reference_style),
+      content_angle: contentAngle,
       title_plan: {
         title_candidates: titlePlan.naver.candidates,
         selected_title: titlePlan.naver.selectedTitle,
@@ -84,6 +87,7 @@ export async function generateBlog(params: {
       selected_products: naverOutput.selected_products,
       image_observations: params.observations,
       reference_pattern: referencePatternPayload(params.input.reference_style),
+      content_angle: contentAngle,
       naver_reference: {
         selected_title: naverOutput.selected_title,
         section_roles: naverOutput.sections.map((section) => section.type),
@@ -108,6 +112,10 @@ export async function generateBlog(params: {
     title_analysis: {
       naver: serializeTitleEvaluations(titlePlan.naver),
       wordpress: serializeTitleEvaluations(titlePlan.wordpress),
+      candidate_groups: {
+        naver: titlePlan.naver.candidateGroups,
+        wordpress: titlePlan.wordpress.candidateGroups,
+      },
     },
   };
 }

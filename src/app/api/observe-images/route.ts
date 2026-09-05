@@ -8,13 +8,13 @@ export async function POST(request: NextRequest) {
 
   const body = (await request.json()) as { image_urls?: string[]; draft_id?: string };
   const imageUrls = body.image_urls ?? [];
-  const observations = await observeImages(imageUrls);
+  const { observations, usedVision } = await observeImages(imageUrls);
   await logGeneration({
     draft_id: body.draft_id ?? null,
     step: "observe-images",
     input_json: { image_urls: imageUrls },
-    output_json: { observations },
+    output_json: { observations, usedVision },
   });
 
-  return NextResponse.json({ observations });
+  return NextResponse.json({ observations, image_analysis_available: usedVision });
 }

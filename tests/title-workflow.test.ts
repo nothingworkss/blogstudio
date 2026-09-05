@@ -104,6 +104,14 @@ describe("semi-manual title workflow", () => {
   it("keeps ranked title scores and reasons from a manual 30-title result", () => {
     const parsed = parseTitlePackage(`{
       "naver": {
+        "candidate_groups": [
+          { "type": "정보형", "titles": ["a1", "a2", "a3", "a4", "a5"] },
+          { "type": "경험 확인형", "titles": ["b1", "b2", "b3", "b4", "b5"] },
+          { "type": "비교형", "titles": ["c1", "c2", "c3", "c4", "c5"] },
+          { "type": "문제 해결형", "titles": ["d1", "d2", "d3", "d4", "d5"] },
+          { "type": "궁금증 유발형", "titles": ["e1", "e2", "e3", "e4", "e5"] },
+          { "type": "구매 직전형", "titles": ["f1", "f2", "f3", "f4", "f5"] }
+        ],
         "ranked_candidates": [{
           "title": "퇴사 답례품, 마지막 출근 전 팀원 선물 먼저 고르기",
           "type": "문제 해결형",
@@ -120,6 +128,8 @@ describe("semi-manual title workflow", () => {
       keywordFitScore: 10,
       reason: "대상 독자와 준비 순간이 바로 보입니다.",
     });
+    expect(parsed.naver.candidateGroups).toHaveLength(6);
+    expect(parsed.naver.candidateGroups.flatMap((group) => group.titles)).toHaveLength(30);
   });
 
   it("rejects the copied prompt skeleton instead of treating style labels as titles", () => {
@@ -186,6 +196,8 @@ describe("semi-manual title workflow", () => {
     expect(Object.values(pool).flat()).toHaveLength(30);
     expect(Object.values(pool).flat().some((title) => title.includes("마지막 출근 전 팀원 선물"))).toBe(true);
     expect(titlePackage.naver.evaluations).toHaveLength(5);
+    expect(titlePackage.naver.candidateGroups).toHaveLength(6);
+    expect(titlePackage.naver.candidateGroups.every((group) => group.titles.length === 5)).toBe(true);
     expect(titlePackage.naver.candidates.some((title) => title.includes("수량·문구·포장"))).toBe(false);
     expect(titlePackage.naver.selectedTitle).toContain("마지막 출근 전 팀원 선물");
   });

@@ -92,6 +92,8 @@ describe("product selection scoring", () => {
     expect(output.title_candidates.every((title) => title.includes(draftInput.main_keyword))).toBe(true);
     expect(output.title_analysis?.naver).toHaveLength(5);
     expect(output.title_analysis?.wordpress).toHaveLength(5);
+    expect(output.title_analysis?.candidate_groups.naver).toHaveLength(6);
+    expect(output.title_analysis?.candidate_groups.wordpress.flatMap((group) => group.titles)).toHaveLength(30);
     expect(output.title_analysis?.naver[0]?.reason).toContain("타깃");
     expect(output.title_candidates.filter((title) => title.endsWith("?")).length).toBeLessThanOrEqual(1);
     expect(new Set(output.title_candidates).size).toBe(5);
@@ -111,7 +113,7 @@ describe("product selection scoring", () => {
     expect(output.sections[1]?.heading).toContain(draftInput.sub_keywords[0]);
     expect(output.wordpress.markdown_for_wordpress).toContain("# ");
     expect(output.wordpress.markdown_for_wordpress).toContain("## ");
-    expect(output.wordpress.markdown_for_wordpress).toMatch(/제가|저는|기준을 잡아요/);
+    expect(output.wordpress.markdown_for_wordpress).toMatch(/마지막에 어떤 말을 남기고 싶은지|기준을 잡기 쉬워요/);
     expect(output.wordpress.markdown_for_wordpress).not.toMatch(/추천드립니다|안내해 드립니다/);
     expect(output.plain_text_for_naver).toContain("✅ ");
     expect(output.wordpress.markdown_for_wordpress).toContain("✅ ");

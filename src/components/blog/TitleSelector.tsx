@@ -4,13 +4,14 @@ import { RefreshCw } from "lucide-react";
 import { clsx } from "clsx";
 import { Button } from "@/components/common/Button";
 import { getTitleWarnings, titleCandidateLabels, type TitleChannel } from "@/lib/title-workflow";
-import type { TitleEvaluationRecord } from "@/types/blog";
+import type { TitleCandidateGroupRecord, TitleEvaluationRecord } from "@/types/blog";
 
 export function TitleSelector({
   channel,
   mainKeyword,
   candidates,
   evaluations = [],
+  candidateGroups = [],
   selectedTitle,
   onSelect,
   onRefresh,
@@ -19,6 +20,7 @@ export function TitleSelector({
   mainKeyword: string;
   candidates: string[];
   evaluations?: TitleEvaluationRecord[];
+  candidateGroups?: TitleCandidateGroupRecord[];
   selectedTitle: string;
   onSelect: (title: string) => void;
   onRefresh: () => void;
@@ -87,6 +89,29 @@ export function TitleSelector({
           );
         })}
       </div>
+      {candidateGroups.length ? (
+        <section aria-label={`${channelLabel} 전체 30개 제목 후보`} className="grid gap-3 border-t border-[#ecebe7] p-4 sm:p-5">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h3 className="text-[13px] font-bold text-[#27272a]">전체 30개 제목 후보</h3>
+            <span className="text-[11px] text-[#6f6f6a]">유형별 5개</span>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {candidateGroups.map((group) => (
+              <article key={group.type} className="rounded-[10px] border border-[#e5e4df] bg-[#fafaf8] p-3">
+                <h4 className="text-[12px] font-bold text-[#8a4b5a]">{group.type}</h4>
+                <ol className="mt-2 grid gap-1.5">
+                  {group.titles.map((title, index) => (
+                    <li key={`${group.type}-${title}-${index}`} className="flex gap-2 text-[11px] leading-4 text-[#4f4f4b]">
+                      <span className="shrink-0 font-semibold text-[#aaa9a3]">{index + 1}</span>
+                      <span>{title}</span>
+                    </li>
+                  ))}
+                </ol>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
     </section>
   );
 }

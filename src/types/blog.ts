@@ -86,6 +86,11 @@ export type TitleEvaluationRecord = {
   reason: string;
 };
 
+export type TitleCandidateGroupRecord = {
+  type: string;
+  titles: string[];
+};
+
 export type BlogDraftOutput = {
   title_candidates: string[];
   selected_title: string;
@@ -107,6 +112,10 @@ export type BlogDraftOutput = {
   title_analysis?: {
     naver: TitleEvaluationRecord[];
     wordpress: TitleEvaluationRecord[];
+    candidate_groups: {
+      naver: TitleCandidateGroupRecord[];
+      wordpress: TitleCandidateGroupRecord[];
+    };
   };
 };
 

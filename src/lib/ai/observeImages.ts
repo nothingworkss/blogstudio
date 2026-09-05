@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { imageObservationSchema } from "@/lib/validations/image.schema";
 import { imageObserverPrompt } from "@/lib/prompts/image-observer";
-import { fallbackObserveImages } from "./fallbacks";
 import { runVisionStructuredResponse } from "./openai";
 
 const observeImagesSchema = z.object({
@@ -9,7 +8,7 @@ const observeImagesSchema = z.object({
 });
 
 export async function observeImages(imageUrls: string[]) {
-  if (imageUrls.length === 0) return [];
+  if (imageUrls.length === 0) return { observations: [], usedVision: false };
 
   const aiResult = await runVisionStructuredResponse({
     schema: observeImagesSchema,
@@ -19,5 +18,8 @@ export async function observeImages(imageUrls: string[]) {
     imageUrls,
   }).catch(() => null);
 
-  return aiResult?.observations ?? fallbackObserveImages(imageUrls);
+  return {
+    observations: aiResult?.observations ?? [],
+    usedVision: Boolean(aiResult),
+  };
 }
