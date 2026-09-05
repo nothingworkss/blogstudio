@@ -59,6 +59,7 @@ import {
   getCrossChannelTitleWarnings,
   getTitleWarnings,
   isManualTitlePromptText,
+  normalizeTitlePackage,
   normalizeTitleResult,
   parseTitlePackage,
   titleCandidateLabels,
@@ -529,8 +530,10 @@ export function BlogStudioApp({
   }
 
   function applyManualTitleText(value: string) {
-    const parsed = parseTitlePackage(value);
     const pastedPromptItself = isManualTitlePromptText(value);
+    const parsed = pastedPromptItself
+      ? parseTitlePackage(value)
+      : normalizeTitlePackage(value, input, selectedProducts);
     updateCurrentTitleWorkflow((current) => ({
       ...current,
       sourceText: value,

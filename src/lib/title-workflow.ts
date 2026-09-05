@@ -78,6 +78,7 @@ const titleContracts: Record<TitleChannel, string> = {
 - 제목을 바로 5개만 쓰지 않는다. 먼저 정보형·경험 확인형·비교형·문제 해결형·궁금증 유발형·구매 직전형으로 각 5개씩, 총 30개를 내부에서 만든다.
 - 30개 중 타깃 독자, 현재 상황, 글의 약속을 가장 잘 담은 5개만 최종 후보로 남긴다. 각 후보는 같은 시작 구조와 결말을 반복하지 않는다.
 - 경험 확인형은 실제 후기나 고객 반응을 꾸미지 말고, 독자가 확인할 사실과 선택 장면으로 쓴다.
+- "키워드를 찾는 사람" 같은 검색 표현을 제목 앞의 명사처럼 붙이지 않는다. 제목 안에서 조사와 제품명 연결이 자연스러운지 확인한다.
 - 질문형은 5개 중 최대 1개만 쓴다. 추천 제목은 질문형이라서 고르지 말고 검색 의도와 상황이 가장 또렷한 것을 고른다.
 - 권장 길이는 22~40자다. 제품명·키워드를 나열하거나 제목 끝에 '정리', '추천', '소개'만 붙이지 않는다.
 - BEST, 완벽, 총정리, 무조건 같은 홍보성 표현과 근거 없는 후기, 인기, 판매량, 가격, 수치, 클릭 유도 표현은 쓰지 않는다.
@@ -127,6 +128,7 @@ ${getTitleContract("wordpress")}
 - targetReader와 situation이 비어 있지 않으면 제목에서 실제 사람이 처한 순간이나 해결하려는 질문이 드러나야 한다.
 - 수량·문구·포장은 input.title_topic 또는 evidence에 있을 때만 쓴다. 세 단어를 기본적인 제목 공식처럼 반복하지 않는다.
 - 경험 확인형은 실제 후기·고객 반응·구매 경험을 만들지 않는다. 독자가 확인할 사실과 선택 장면으로 쓴다.
+- "키워드를 찾는 사람"을 제목 앞에 붙여 "찾을 위한"처럼 만들지 않는다. 제품명 뒤 조사도 자연스러운 한국어로 쓴다.
 
 생성·평가 순서:
 1. 정보형, 경험 확인형, 비교형, 문제 해결형, 궁금증 유발형, 구매 직전형을 각 5개씩 만들어 채널당 정확히 30개를 탐색한다.
@@ -309,16 +311,17 @@ export function buildLocalTitlePool(
 ): Record<TitleIdeaType, string[]> {
   const topic = buildTitleTopic(input, selectedProducts);
   const keyword = topic.mainKeyword;
-  const target = shortenTitleContext(topic.targetReader, 16) || "선물을 준비하는 사람";
-  const situation = shortenTitleContext(topic.situation, 16) || "준비가 필요한 순간";
+  const target = getTitleTargetContext(topic.targetReader, keyword);
   const firstName = selectedProducts[0]?.product_name || "첫 번째 제품";
   const secondName = selectedProducts[1]?.product_name || "두 번째 제품";
+  const productPair = joinWithAnd([firstName, secondName]);
   const isWordPress = channel === "wordpress";
   const guideWord = isWordPress ? "준비 가이드" : "먼저 알아둘 것";
+  const targetFor = target ? `${withObjectParticle(target)} 위한 ` : "";
 
   return {
     정보형: [
-      `${withObjectParticle(target)} 위한 ${keyword}, ${guideWord}`,
+      `${targetFor}${keyword}, ${guideWord}`,
       `${withObjectParticle(keyword)} 준비할 때 먼저 알아둘 내용`,
       `${keyword}, 선택 전에 정리하면 좋은 순서`,
       `${keyword} 준비에 필요한 기본 흐름`,
@@ -327,36 +330,36 @@ export function buildLocalTitlePool(
     "경험 확인형": [
       `${keyword}, 실제 준비 전에 확인할 점`,
       `${withObjectParticle(keyword)} 고를 때 놓치기 쉬운 부분`,
-      `${withSubjectParticle(target)} ${withObjectParticle(keyword)} 준비하며 확인할 점`,
+      target ? `${target} 준비, ${withObjectParticle(keyword)} 고르며 확인할 점` : `${keyword}, 준비하며 확인할 점`,
       `${keyword}, 준비 과정에서 다시 보게 되는 조건`,
       `${keyword}, 제품보다 먼저 확인할 준비 조건`,
     ],
     비교형: [
-      `${firstName}와 ${secondName}, ${keyword}에서 다른 점`,
-      `${keyword}, ${firstName}과 ${secondName}을 나누어 보는 법`,
-      `${target}의 ${keyword}, 두 제품을 고르는 순서`,
-      `${keyword} 준비, ${firstName}과 ${secondName} 비교 포인트`,
-      `${target}의 ${keyword}, 두 제품을 나누어 보는 이유`,
+      `${productPair}, ${keyword}에서 다른 점`,
+      `${keyword}, ${productPair} 나누어 보는 법`,
+      target ? `${keyword}, ${target}에 맞춰 두 제품 고르는 순서` : `${keyword}, 두 제품을 고르는 순서`,
+      `${keyword} 준비, ${productPair} 비교 포인트`,
+      target ? `${keyword}, ${target}에 맞는 두 제품 비교 포인트` : `${keyword}, 두 제품을 나누어 보는 이유`,
     ],
     "문제 해결형": [
       `${keyword} 준비가 막힐 때, 무엇부터 정리할까`,
       `${withObjectParticle(keyword)} 고르기 어려울 때 다시 볼 질문`,
       `${keyword}, 무엇부터 정해야 준비가 쉬워질까`,
-      `${target}의 ${keyword} 고민, 순서부터 다시 잡기`,
+      target ? `${keyword}, ${withObjectParticle(target)} 준비하며 막히는 지점` : `${keyword} 고민, 순서부터 다시 잡기`,
       `${keyword} 준비 전 헷갈리는 부분을 나누어 보는 법`,
     ],
     "궁금증 유발형": [
       `${keyword}, 먼저 정하면 준비가 쉬워지는 한 가지`,
-      `${target}은 ${keyword}에서 무엇을 먼저 볼까?`,
+      target ? `${keyword}, ${withObjectParticle(target)} 준비할 때 먼저 볼 점` : `${keyword}, 제품보다 먼저 볼 점`,
       `${keyword}, 준비 전에 놓치기 쉬운 한 가지`,
-      `${keyword}을 고를 때 제품보다 앞서는 질문`,
-      `${situation}의 ${keyword}, 어디부터 좁혀야 할까?`,
+      `${withObjectParticle(keyword)} 고를 때 제품보다 앞서는 질문`,
+      target ? `${keyword}, ${target}에 맞춰 무엇을 먼저 볼까?` : `${keyword}, 어디부터 좁혀야 할까?`,
     ],
     "구매 직전형": [
-      `${withObjectParticle(target)} 위한 ${keyword}, 문의 전 확인할 내용`,
+      `${targetFor}${keyword}, 문의 전 확인할 내용`,
       `${keyword}, 결정 전에 볼 항목`,
       `${keyword} 준비 마무리 전 체크할 것`,
-      `${target}을 위한 ${keyword}, 결정 직전의 선택`,
+      target ? `${keyword}, ${target} 준비 전 결정할 것` : `${keyword}, 결정 직전의 선택`,
       `${keyword}, 지금 문의 전에 정리할 내용`,
     ],
   };
@@ -408,7 +411,7 @@ function normalizeTitlePackageChannel(
     ?? createLocalTitleEvaluation(title, titleIdeaTypes[index] ?? "정보형", topic),
   );
   const selectedTitle = normalized.selected_title;
-  const candidateGroups = normalizeCandidateGroups(raw.candidateGroups, fallback.candidateGroups);
+  const candidateGroups = normalizeCandidateGroups(raw.candidateGroups, fallback.candidateGroups, input, selectedProducts);
 
   return { candidates: normalized.title_candidates, selectedTitle, evaluations, candidateGroups };
 }
@@ -462,11 +465,11 @@ export function normalizeTitleResult({
   const fallback = buildLocalTitleCandidates(input, selectedProducts, channel);
   const usable = uniqueTitles([...candidates, ...fallback])
     .filter((title) => title !== avoidTitle)
-    .filter((title) => !hasCriticalTitleIssue(title, keyword));
+    .filter((title) => !hasCriticalTitleIssue(title, keyword, selectedProducts));
   const completed = uniqueTitles([...usable, ...fallback.filter((title) => title !== avoidTitle)]).slice(0, 5);
   const titleCandidates = completed.length === 5 ? completed : uniqueTitles([...completed, ...fallback]).slice(0, 5);
   const preferred = selectedTitle?.trim();
-  const selected = preferred && titleCandidates.includes(preferred) && !hasCriticalTitleIssue(preferred, keyword)
+  const selected = preferred && titleCandidates.includes(preferred) && !hasCriticalTitleIssue(preferred, keyword, selectedProducts)
     ? preferred
     : titleCandidates
       .map((title) => ({ title, score: getTitleScore(title, keyword, channel) }))
@@ -590,6 +593,10 @@ export function getTitleWarnings(title: string, mainKeyword: string, channel: Ti
 
   if (flatTitleEndings.some((ending) => normalizedTitle.endsWith(ending))) {
     warnings.push("제목 끝의 '정리·추천·소개' 대신 독자가 얻을 정보를 더 구체적으로 써 주세요.");
+  }
+
+  if (hasMalformedTitlePhrase(normalizedTitle)) {
+    warnings.push("문장 연결이나 조사가 어색한 제목입니다.");
   }
 
   return warnings;
@@ -720,9 +727,18 @@ function readTitleCandidateGroups(value: unknown): TitleCandidateGroup[] {
     .filter((item): item is TitleCandidateGroup => Boolean(item));
 }
 
-function normalizeCandidateGroups(raw: TitleCandidateGroup[], fallback: TitleCandidateGroup[]) {
+function normalizeCandidateGroups(
+  raw: TitleCandidateGroup[],
+  fallback: TitleCandidateGroup[],
+  input: BlogDraftInput,
+  selectedProducts: ProductRecommendation[],
+) {
   const types = new Set(raw.map((group) => group.type));
-  return raw.length === titleIdeaTypes.length && types.size === titleIdeaTypes.length
+  const keyword = input.main_keyword.trim() || input.topic.trim();
+  const groupsAreUsable = raw.every((group) =>
+    group.titles.length === 5 && group.titles.every((title) => !hasCriticalTitleIssue(title, keyword, selectedProducts)),
+  );
+  return raw.length === titleIdeaTypes.length && types.size === titleIdeaTypes.length && groupsAreUsable
     ? raw
     : fallback;
 }
@@ -755,10 +771,10 @@ function emptyTitlePackage(): TitlePackage {
   };
 }
 
-function hasCriticalTitleIssue(title: string, keyword: string) {
+function hasCriticalTitleIssue(title: string, keyword: string, selectedProducts: ProductRecommendation[] = []) {
   return getTitleWarnings(title, keyword, "naver").some((warning) =>
-    warning.startsWith("메인 키워드") || warning.startsWith("홍보성"),
-  );
+    warning.startsWith("메인 키워드") || warning.startsWith("홍보성") || warning.startsWith("문장 연결"),
+  ) || hasInvalidProductParticle(title, selectedProducts);
 }
 
 function getTitleScore(title: string, keyword: string, channel: TitleChannel) {
@@ -799,8 +815,11 @@ function withObjectParticle(value: string) {
   return `${value}${hasFinalConsonant(value) ? "을" : "를"}`;
 }
 
-function withSubjectParticle(value: string) {
-  return `${value}${hasFinalConsonant(value) ? "이" : "가"}`;
+function joinWithAnd(values: string[]) {
+  return values.filter(Boolean).reduce((joined, value) => {
+    if (!joined) return value;
+    return `${joined}${hasFinalConsonant(joined) ? "과" : "와"} ${value}`;
+  }, "");
 }
 
 function hasFinalConsonant(value: string) {
@@ -826,9 +845,29 @@ function shortenTitleContext(value: string, limit: number) {
     .trim()
     .replace(/을 준비하는$|를 준비하는$/g, "")
     .trim()
-    .replace(/[을를은는이가]$/g, "")
-    .trim();
   return normalized.length > limit ? normalized.slice(0, limit).trim() : normalized;
+}
+
+function getTitleTargetContext(value: string, keyword: string) {
+  const target = shortenTitleContext(value, 16);
+  if (!target || target.includes(keyword) || /(?:을|를)\s*(?:찾는|검색하는)$/.test(target)) return "";
+  return target;
+}
+
+function hasMalformedTitlePhrase(title: string) {
+  return /찾이|찾을\s+위한|찾은\s+(?:[가-힣\s]+)?(?:답례품|쿠키|선물)/.test(title);
+}
+
+function hasInvalidProductParticle(title: string, selectedProducts: ProductRecommendation[]) {
+  return selectedProducts.some((product) => {
+    const productName = product.product_name.trim();
+    if (!productName) return false;
+    const expected = hasFinalConsonant(productName)
+      ? new Set(["은", "이", "을", "과"])
+      : new Set(["는", "가", "를", "와"]);
+    const particleMatches = title.match(new RegExp(`${escapeRegExp(productName)}([은는이가을를와과])`, "g")) ?? [];
+    return particleMatches.some((match) => !expected.has(match.at(-1) ?? ""));
+  });
 }
 
 function countTerm(value: string, term: string) {

@@ -15,8 +15,10 @@ import {
   getCrossChannelTitleWarnings,
   getTitleWarnings,
   isManualTitlePromptText,
+  normalizeTitlePackage,
   parseTitleCandidates,
   parseTitlePackage,
+  titleIdeaTypes,
 } from "@/lib/title-workflow";
 
 const input: BlogDraftInput = {
@@ -200,6 +202,47 @@ describe("semi-manual title workflow", () => {
     expect(titlePackage.naver.candidateGroups.every((group) => group.titles.length === 5)).toBe(true);
     expect(titlePackage.naver.candidates.some((title) => title.includes("수량·문구·포장"))).toBe(false);
     expect(titlePackage.naver.selectedTitle).toContain("마지막 출근 전 팀원 선물");
+  });
+
+  it("keeps all 30 local titles natural when the target is only a search phrase", () => {
+    const searchOnlyInput = {
+      ...input,
+      target_reader: "퇴사 답례품을 찾는 사람",
+      preferred_products: ["커스텀형 브라우니쿠키", "수제쿠키 패키지"],
+    };
+    const searchOnlyProducts = [
+      selectedProducts[0],
+      { ...selectedProducts[1], product_name: "수제쿠키 패키지" },
+    ];
+    const titles = Object.values(buildLocalTitlePool(searchOnlyInput, searchOnlyProducts, "naver")).flat();
+
+    expect(titles).toHaveLength(30);
+    expect(titles.every((title) => title.includes(searchOnlyInput.main_keyword))).toBe(true);
+    expect(titles.join("\n")).not.toMatch(/찾이|찾을 위한|찾은 퇴사 답례품/);
+    expect(titles.join("\n")).not.toContain("커스텀형 브라우니쿠키과");
+    expect(titles.join("\n")).not.toContain("수제쿠키 패키지을");
+  });
+
+  it("replaces malformed 30-title model groups with natural local groups", () => {
+    const brokenTitle = "퇴사 답례품을 찾이 퇴사 답례품을 준비하며 확인할 점";
+    const titlePackage = normalizeTitlePackage(
+      {
+        naver: {
+          candidate_groups: titleIdeaTypes.map((type) => ({
+            type,
+            titles: Array.from({ length: 5 }, (_, index) => `${brokenTitle} ${index + 1}`),
+          })),
+          title_candidates: [brokenTitle],
+          selected_title: brokenTitle,
+        },
+      },
+      input,
+      selectedProducts,
+    );
+
+    expect(titlePackage.naver.candidateGroups).toHaveLength(6);
+    expect(titlePackage.naver.candidateGroups.flatMap((group) => group.titles).join("\n")).not.toContain("찾이");
+    expect(titlePackage.naver.candidates).not.toContain(brokenTitle);
   });
 
   it("requires the model to explore 30 titles and rank only the best five", () => {
