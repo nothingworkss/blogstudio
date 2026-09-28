@@ -8,11 +8,11 @@ export function formatPlainTextForNaver(output: Pick<BlogDraftOutput, "selected_
   const sections = output.sections
     .map((section) => {
       const heading = section.heading ? `${section.heading}\n` : "";
-      return `${heading}${normalizeCheckBullets(section.body)}`;
+      return `${heading}${plainNaverText(section.body)}`;
     })
     .join("\n\n");
 
-  const faq = output.faq.map((item) => `Q. ${item.q}\nA. ${item.a}`).join("\n\n");
+  const faq = output.faq.map((item) => `Q. ${plainNaverText(item.q)}\nA. ${plainNaverText(item.a)}`).join("\n\n");
   const hashtags = output.hashtags.join(" ");
 
   return [
@@ -30,6 +30,13 @@ export function formatPlainTextForNaver(output: Pick<BlogDraftOutput, "selected_
     .replace(/(^|\n)[ \t]*[-*•]\s+/g, "$1✅ ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+function plainNaverText(value: string) {
+  return normalizeCheckBullets(value)
+    .replace(/\\\*/g, "*")
+    .replace(/\*\*([\s\S]*?)\*\*/g, "$1")
+    .replace(/<\/?mark\b[^>]*>/gi, "");
 }
 
 export function formatImageGuide(output: BlogDraftOutput) {

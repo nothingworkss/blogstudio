@@ -85,13 +85,14 @@ export const wordpressDraftOutputSchema = z.object({
 });
 
 export const naverDraftOutputSchema = z.object({
+  naver_source: z.enum(["generated", "template"]).optional(),
   title_candidates: z.array(z.string()).length(5),
   selected_title: z.string(),
   search_intent: z.string(),
   selected_products: z.array(productRecommendationSchema).length(2),
-  sections: z.array(blogSectionSchema).min(6),
+  sections: z.array(blogSectionSchema).min(5),
   faq: z.array(z.object({ q: z.string(), a: z.string() })).length(4),
-  hashtags: z.array(z.string()).min(10).max(15),
+  hashtags: z.array(z.string()).min(5).max(15),
   image_guide: z
     .array(
       z.object({
@@ -105,8 +106,11 @@ export const naverDraftOutputSchema = z.object({
 });
 
 export const naverGenerationOutputSchema = naverDraftOutputSchema
-  .omit({ selected_products: true, plain_text_for_naver: true })
-  .extend({ sections: z.array(blogSectionSchema).length(7) });
+  .omit({ selected_products: true, plain_text_for_naver: true, naver_source: true })
+  .extend({
+    sections: z.array(blogSectionSchema).length(5),
+    hashtags: z.array(z.string()).min(5).max(10),
+  });
 
 export const wordpressGenerationOutputSchema = wordpressDraftOutputSchema
   .omit({ markdown_for_wordpress: true })

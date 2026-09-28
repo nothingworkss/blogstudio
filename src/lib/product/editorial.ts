@@ -149,35 +149,24 @@ export function formatProductSummaryBlock(recommendation: ProductRecommendation)
       "상황에 맞는 구성과 일정을 상담하면서 맞추면 좋습니다.",
   );
 
-  return `**사장님한마디 😎**\n${note}`;
+  return `작성 참고 메모\n${note}`;
 }
 
 export function formatProductRecommendationBody({
-  input,
   recommendation,
-  otherRecommendation,
 }: {
-  input: BlogDraftInput;
   recommendation: ProductRecommendation;
-  otherRecommendation?: ProductRecommendation;
 }) {
-  const anglePhrase = productAnglePhrase(recommendation.product_name);
-  const otherPhrase = otherRecommendation
-    ? `${otherRecommendation.product_name}${topicParticle(otherRecommendation.product_name)} ${productAnglePhrase(otherRecommendation.product_name)}을 먼저 볼 때 편하고, ${recommendation.product_name}${topicParticle(recommendation.product_name)} ${anglePhrase}을 기준으로 볼 때 편해요.`
-    : `${recommendation.product_name}${topicParticle(recommendation.product_name)} ${anglePhrase}을 기준으로 보면 편해요.`;
-
-  return [
-    formatProductSummaryBlock(recommendation),
-    `이 구성이 편한 건 ${specificSituationPhrase(input, recommendation)}예요.`,
-    `제품 자랑을 먼저 하기보다, 받는 사람이 어떤 순간에 이 쿠키를 받게 될지부터 보면 고르기 편합니다.`,
-    `✅ ${otherPhrase}`,
-    `문의하실 때는 ${orderCheckPhrase(input, recommendation)}`,
-    recommendation.missing_info.length
-      ? `✅ 아직 자료가 비어 있는 부분은 ${recommendation.missing_info.join(", ")}입니다. 이 부분은 구성에 따라 달라질 수 있어 문의 때 확인하는 쪽이 안전합니다.`
-      : "",
-  ]
-    .filter(Boolean)
-    .join("\n\n");
+  const name = recommendation.product_name.startsWith("SNS쿠키")
+    ? "비행기 버터쿠키"
+    : recommendation.product_name.replace(/\s*\([^)]*\)/g, "");
+  const summary = recommendation.summary.one_line_point || recommendation.angle;
+  const facts = recommendation.main_points
+    .filter((point) => point && !summary.includes(point) && !/기준|상황에 맞|먼저 보/.test(point))
+    .slice(0, 2);
+  const lead = summary ? `${name}${hasFinalConsonant(name) ? "은" : "는"} ${summary.replace(/[.!?]+$/, "")}입니다.` : `${name}의 구성은 주문 전에 확인해 주세요.`;
+  const details = facts.length ? `${facts.join(". ")}.` : "";
+  return [lead, details].filter(Boolean).join("\n\n");
 }
 
 export function applyEditorialProductSections(output: BlogDraftOutput, input: BlogDraftInput): BlogDraftOutput {
@@ -192,7 +181,6 @@ export function applyEditorialProductSections(output: BlogDraftOutput, input: Bl
     sections: output.sections.map((section) => {
       if (section.type !== "product_recommendation") return section;
       const recommendation = selectedProducts[productIndex];
-      const otherRecommendation = selectedProducts[productIndex === 0 ? 1 : 0];
       productIndex += 1;
       if (!recommendation) return section;
 
@@ -201,9 +189,7 @@ export function applyEditorialProductSections(output: BlogDraftOutput, input: Bl
         heading: normalizeProductSectionHeading(section.heading, recommendation.product_name),
         body: normalizeProductRecommendationSection({
           body: section.body,
-          input,
           recommendation,
-          otherRecommendation,
         }),
       };
     }),
@@ -275,70 +261,27 @@ function findProductForRecommendation(products: Product[], recommendationName: s
     );
 }
 
-function productAnglePhrase(productName: string) {
-  if (productName.includes("커스텀")) return "문구와 기념 포인트를 살리는 구성";
-  if (productName.includes("행운")) return "가볍게 나누는 응원 선물";
-  if (productName.includes("스콘")) return "차분한 감사 선물";
-  if (productName.includes("수제쿠키")) return "귀엽고 사진에 남는 선물 구성";
-  if (productName.includes("terminal")) return "콘셉트와 세계관을 보여주는 구성";
-  if (productName.includes("브라우니")) return "여러 명에게 깔끔하게 나누는 답례 구성";
-  return "상황에 맞춰 기준을 잡기 쉬운 구성";
-}
-
 function cleanSentence(value: string) {
   const trimmed = value.trim().replace(/[.。]+$/g, "");
   return trimmed ? `${trimmed}.` : "";
 }
 
-function orderCheckPhrase(input: BlogDraftInput, recommendation: ProductRecommendation) {
-  const source = deriveContentAngle(input).orderChecks.slice(0, 3).join(", ") || recommendation.summary.order_check || recommendation.caution;
-  return `${source.trim().replace(/[.。]+$/g, "")} 정도를 먼저 알려주시면 기준을 잡기 편해요.`;
-}
-
 function normalizeProductRecommendationSection({
   body,
-  input,
   recommendation,
-  otherRecommendation,
 }: {
   body: string;
-  input: BlogDraftInput;
   recommendation: ProductRecommendation;
-  otherRecommendation?: ProductRecommendation;
 }) {
   if (!body.trim()) {
-    return formatProductRecommendationBody({ input, recommendation, otherRecommendation });
+    return formatProductRecommendationBody({ recommendation });
   }
-  if (!contextCompatibleText(body, input)) {
-    return formatProductRecommendationBody({ input, recommendation, otherRecommendation });
-  }
-
-  if (body.includes("**사장님한마디 😎**")) return normalizeCheckBullets(body);
-  if (body.includes("[한눈에 보기]") || body.includes("추천 상황:") || body.includes("낫띵의 한마디") || body.includes("사장님 한마디")) {
-    return normalizeCheckBullets(normalizeProductSummaryBlock(body, recommendation));
-  }
-
-  return normalizeCheckBullets(`${formatProductSummaryBlock(recommendation)}\n\n${body}`);
-}
-
-function normalizeProductSummaryBlock(body: string, recommendation: ProductRecommendation) {
-  return body.replace(
-    /(?:\[한눈에 보기\]\n?(?:🎁\s*추천 상황:.*\n?)?(?:😎\s*낫띵의 한마디:.*\n?)?|🎁\s*추천 상황:.*\n?(?:😎\s*낫띵의 한마디:.*\n?)?|😎\s*낫띵의 한마디:.*\n?|💌\s*사장님 한마디:.*\n?)/,
-    `${formatProductSummaryBlock(recommendation)}\n\n`,
-  );
-}
-
-function specificSituationPhrase(input: BlogDraftInput, recommendation: ProductRecommendation) {
-  const context = [input.topic, input.situation, recommendation.summary.recommended_situation].filter(Boolean).join(" ");
-  const productName = recommendation.product_name;
-  if (context.includes("퇴사") && productName.includes("커스텀")) return "퇴사 마지막 날 팀원들에게 하나씩 건네면서, 짧은 문구를 남기고 싶을 때";
-  if (context.includes("퇴사") && productName.includes("행운")) return "마지막 인사를 너무 무겁게 만들지 않고, 작은 응원처럼 건네고 싶을 때";
-  if (context.includes("퇴사")) return "퇴사 마지막 날 여러 명에게 같은 기준으로 나눠야 할 때";
-  if (context.includes("어린이") || context.includes("유치원") || context.includes("어린이집")) return "아이들이 받는 장면과 행사의 분위기를 함께 생각할 때";
-  if (context.includes("스승") || context.includes("어버이") || context.includes("감사")) return "감사 인사는 전하고 싶지만 선물이 너무 무겁게 느껴지지 않았으면 할 때";
-  if (context.includes("결혼")) return "하객에게 어떤 분위기로 감사 인사를 전할지 먼저 정리할 때";
-  const fallback = recommendation.summary.recommended_situation || input.situation || input.topic;
-  return fallback ? `${fallback}을 기준으로 고를 때` : "받는 사람과 전달하는 날이 어느 정도 정해져 있을 때";
+  const cleaned = body
+    .replace(/\*\*사장님한마디\s*😎\*\*[^\n]*(?:\n[^\n]+)?\n*/g, "")
+    .replace(/\[한눈에 보기\][^\n]*\n?/g, "")
+    .replace(/^(?:🎁\s*추천 상황|😎\s*낫띵의 한마디|💌\s*사장님 한마디):[^\n]*\n?/gm, "")
+    .trim();
+  return cleaned ? normalizeCheckBullets(cleaned) : formatProductRecommendationBody({ recommendation });
 }
 
 function contextualizeEditorialProfile(profile: ProductEditorialProfile, input: BlogDraftInput) {
@@ -392,10 +335,6 @@ function shortSummarySentence(value: string) {
   const trimmed = value.trim().replace(/\s+/g, " ");
   const firstSentence = trimmed.match(/^[^.!?。]+(?:[.!?。]|요\.|니다\.)?/)?.[0] ?? trimmed;
   return cleanSentence(firstSentence);
-}
-
-function topicParticle(value: string) {
-  return hasFinalConsonant(value) ? "은" : "는";
 }
 
 function hasFinalConsonant(value: string) {

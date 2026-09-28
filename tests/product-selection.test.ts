@@ -70,7 +70,7 @@ describe("product selection scoring", () => {
     expect(result[0].product.name).toBe("곰돌이 스콘");
   });
 
-  it("fallback blog output follows the stricter prompt structure", () => {
+  it("fallback blog output uses concise, fact-led sections", () => {
     const draftInput = input({
       topic: "퇴사 답례품",
       main_keyword: "퇴사 답례품",
@@ -107,15 +107,16 @@ describe("product selection scoring", () => {
     expect(output.wordpress.sections.every((section) => !/^(?:[1-7]️⃣|##)/.test(section.heading))).toBe(true);
     expect(output.sections.map((section) => section.heading)).not.toContain("도입부");
     expect(output.sections.map((section) => section.heading)).not.toContain("상황 공감");
+    expect(output.sections).toHaveLength(5);
     expect(output.sections[0]?.heading).not.toContain(draftInput.main_keyword);
-    expect(output.sections[0]?.body).toContain(draftInput.main_keyword);
-    expect(output.sections[1]?.heading).toContain(draftInput.sub_keywords[0]);
+    expect(output.sections[0]?.body).toContain("커스텀형 브라우니쿠키");
+    expect(output.sections[1]?.heading).toContain("커스텀형 브라우니쿠키");
     expect(output.wordpress.markdown_for_wordpress).toContain("# ");
     expect(output.wordpress.markdown_for_wordpress).toContain("## ");
     expect(output.wordpress.markdown_for_wordpress).toContain(selectedProducts[0].product_name);
     expect(output.wordpress.markdown_for_wordpress).not.toMatch(/추천드립니다|안내해 드립니다/);
     expect(output.wordpress.markdown_for_wordpress).not.toMatch(/네이버 글|워드프레스 본문|이미지 ALT|<mark|## ##/);
-    expect(output.plain_text_for_naver).toContain("✅ ");
+    expect(output.plain_text_for_naver).not.toContain("**사장님한마디 😎**");
     expect(output.plain_text_for_naver).not.toContain("\n- ");
     expect(output.wordpress.markdown_for_wordpress).not.toContain("\n- ");
     expect(output.plain_text_for_naver).not.toContain("\n* ");
@@ -123,10 +124,11 @@ describe("product selection scoring", () => {
     expect(output.wordpress.image_guide.every((item) => item.alt_text === "")).toBe(true);
     expect(output.wordpress.markdown_for_wordpress.split(/\n{2,}/)[1]).not.toBe(output.plain_text_for_naver.split(/\n{2,}/)[1]);
     expect(output.faq).toHaveLength(4);
-    expect(output.hashtags.length).toBeGreaterThanOrEqual(10);
+    expect(output.hashtags.length).toBeGreaterThanOrEqual(5);
+    expect(output.hashtags.length).toBeLessThanOrEqual(10);
     const productSections = output.sections.filter((section) => section.type === "product_recommendation");
     expect(productSections).toHaveLength(2);
-    expect(productSections.every((section) => section.body.includes("**사장님한마디 😎**"))).toBe(true);
+    expect(productSections.every((section) => !section.body.includes("**사장님한마디 😎**"))).toBe(true);
     expect(productSections.every((section) => (section.body.match(/^[🍪🎀✅📌]/gmu) ?? []).length <= 2)).toBe(true);
     expect(productSections.some((section) => /\[한눈에 보기\]|추천 상황:|낫띵의 한마디|한줄 포인트|문구 포인트|포장 느낌|주문 전 확인:/.test(section.body))).toBe(false);
     expect(productSections.some((section) => section.heading?.includes("추천 제품"))).toBe(false);
@@ -155,7 +157,7 @@ describe("product selection scoring", () => {
     expect(sparseSelection?.summary.packaging_mood).toContain("상담");
   });
 
-  it("keeps generic gift content free from stale resignation copy and places the SEO keyword in the intro body", () => {
+  it("keeps generic gift content free from stale resignation copy and keyword stuffing", () => {
     const draftInput = input({
       topic: "감사 답례품",
       main_keyword: "답례품 쿠키",
@@ -214,9 +216,9 @@ describe("product selection scoring", () => {
 
     expect(productText).not.toContain("퇴사");
     expect(productText).not.toContain("포장 인상");
-    expect(output.sections.some((section) => section.heading === "수제쿠키 패키지, 포장을 보는 기준")).toBe(true);
-    expect(productText).toContain(draftInput.main_keyword);
-    expect(output.sections[0]?.body).toContain(draftInput.main_keyword);
+    expect(output.sections.some((section) => section.heading === "수제쿠키 패키지의 구성")).toBe(true);
+    expect(productText).not.toContain(draftInput.main_keyword);
+    expect(output.sections[0]?.body).not.toContain("건네는 장면");
     expect(output.sections[0]?.heading).not.toContain(draftInput.main_keyword);
     expect(output.selected_title).toContain(draftInput.main_keyword);
     expect(output.hashtags).toContain(`#${draftInput.main_keyword.replace(/\s+/g, "")}`);

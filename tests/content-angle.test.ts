@@ -58,7 +58,7 @@ describe("content angle selection", () => {
     expect(angle.orderChecks).toEqual(expect.arrayContaining(["예상 수량", "남기고 싶은 문구", "포장 방식"]));
   });
 
-  it("uses observed image facts while keeping farewell checks focused on the farewell", () => {
+  it("uses visible image facts while keeping the order step practical", () => {
     const draftInput = input({
       topic: "퇴사 답례품",
       main_keyword: "퇴사 답례품",
@@ -89,8 +89,8 @@ describe("content angle selection", () => {
     expect(intro).toContain("하트 모양 쿠키");
     expect(intro).toContain("핑크, 크림 톤");
     expect(intro).toContain("고마웠어요");
-    expect(intro).toContain("차분한 마지막 인사 분위기");
-    expect(orderChecks).toContain("남기고 싶은 인사");
-    expect(orderChecks).not.toMatch(/예상 수량|남기고 싶은 문구|포장 방식/);
+    expect(intro).not.toContain("사진만으로 정확한 수량");
+    expect(orderChecks).toContain("필요한 날짜와 수량");
+    expect(orderChecks).not.toContain("건네는 장면");
   });
 });

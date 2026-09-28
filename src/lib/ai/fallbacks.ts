@@ -4,13 +4,12 @@ import type { Brand, Product, ProductRecommendation } from "@/types/product";
 import { analyzeReferencePatternFit, getReferenceSafetyWarnings } from "@/lib/reference/blog-patterns";
 import {
   ensureRecommendationEditorialDefaults,
-  formatProductRecommendationBody,
   hydrateRecommendation,
 } from "@/lib/product/editorial";
+import { seedProducts } from "@/lib/data/seed";
 import { formatPlainTextForNaver } from "@/lib/utils/copyFormat";
 import { applySeoSectionHeadings } from "@/lib/utils/seoHeadings";
 import { buildWordPressFallback } from "@/lib/content/wordpress-fallback";
-import { deriveContentAngle } from "@/lib/content/angle";
 import { buildLocalTitlePackage, getTitleWarnings, normalizeTitleResult, type TitleResult } from "@/lib/title-workflow";
 import { selectProductsByScore } from "./selectProducts";
 
@@ -60,11 +59,12 @@ export function fallbackGenerateBlog(params: {
 }): BlogDraftOutput {
   const { input, selectedProducts, observations } = params;
   const [first, second] = selectedProducts.map((product) => ensureRecommendationEditorialDefaults(product, input));
-  const titleBase = input.main_keyword || input.topic;
-  const cta = input.cta || params.brand.default_cta;
-  const contentAngle = deriveContentAngle(input, selectedProducts);
-  const targetReader = input.target_reader || "선물을 준비하는 사람";
-  const imageObservationLead = buildImageObservationLead(observations);
+  const catalog = params.products?.length ? params.products : seedProducts;
+  const firstProduct = catalog.find((product) => product.name === first.product_name);
+  const secondProduct = catalog.find((product) => product.name === second.product_name);
+  const firstName = publicProductName(first.product_name);
+  const secondName = publicProductName(second.product_name);
+  const airportTopic = /김포공항|공항동|송정역|비행기|여행/.test(`${input.topic} ${input.main_keyword}`);
   const titlePlan = buildLocalTitlePackage(input, selectedProducts);
   const naverTitles = normalizeTitleResult({
     channel: "naver",
@@ -73,148 +73,56 @@ export function fallbackGenerateBlog(params: {
     input,
     selectedProducts,
   });
-  const titleCandidates = naverTitles.title_candidates;
-
+  const firstSummary = contextSafeSummary(firstProduct, first, input);
+  const secondSummary = contextSafeSummary(secondProduct, second, input);
+  const imageLead = observedImageSentence(observations);
+  const flightAndCrew = firstName === "비행기 버터쿠키" && secondName === "쿠키크루";
+  const intro = `${flightAndCrew
+    ? "비행기 모양 쿠키를 한 개씩 챙기고 싶다면 비행기 버터쿠키가 있어요. 쿠키와 마그넷을 함께 고르는 선물이라면 쿠키크루를 살펴보세요."
+    : `${airportTopic ? "비행기 쿠키를 찾고 계신가요?" : "어떤 쿠키 구성을 찾고 계신가요?"} ${firstName}${subjectParticle(firstName)} ${firstSummary.replace(/[.!?]+$/, "")}입니다. ${secondName}${subjectParticle(secondName)} ${secondSummary.replace(/[.!?]+$/, "")}입니다.`}${imageLead ? `\n\n${imageLead}` : ""}`;
+  const pickup = airportTopic
+    ? "김포공항 안에서 바로 구매하는 방식은 아닙니다. 서울 강서구 송정로 25 1층 공항동 작업실에서 예약 픽업을 안내하고 있어요. 필요한 날짜와 수량을 먼저 정한 뒤 수령 가능한 시간을 확인해 주세요."
+    : "필요한 날짜와 수량을 먼저 정해 주세요. 제품별 구성과 수령 가능 일정은 주문 전에 확인할 수 있습니다.";
+  const faq = [
+    firstProduct?.default_faq?.[0] ?? { q: `${firstName}은 어떻게 구성되어 있나요?`, a: firstSummary },
+    secondProduct?.default_faq?.[0] ?? { q: `${secondName}은 어떻게 구성되어 있나요?`, a: secondSummary },
+    airportTopic
+      ? { q: "김포공항 안에서 바로 살 수 있나요?", a: "공항 안 매장이 아닌 공항동 작업실에서 예약 픽업을 안내합니다. 방문 전에 수령 가능 시간을 확인해 주세요." }
+      : { q: "수령 날짜는 언제 확인하나요?", a: "원하는 제품과 수량에 따라 가능한 날짜를 확인해야 합니다. 예약 전에 필요한 날짜를 알려주세요." },
+    { q: "예약할 때 무엇을 알려주면 되나요?", a: "원하는 제품과 수량, 필요한 날짜를 알려주시면 제작 및 픽업 가능 여부를 확인할 수 있습니다." },
+  ];
+  const hashtagCandidates = [
+    input.main_keyword,
+    ...input.sub_keywords,
+    ...(firstProduct?.keywords ?? []),
+    ...(secondProduct?.keywords ?? []),
+    firstName,
+    secondName,
+    "수제쿠키",
+    "nothingmatters",
+  ];
+  const hashtags = [...new Set(hashtagCandidates
+    .filter((tag) => tag && tag !== input.topic && tag !== "SNS쿠키" && tag.length <= 16 && !/[｜|,]/.test(tag))
+    .map((tag) => `#${tag.replace(/\s+/g, "")}`))].slice(0, 10);
   const outputWithoutPlain = {
-    title_candidates: titleCandidates,
+    naver_source: "template" as const,
+    title_candidates: naverTitles.title_candidates,
     selected_title: naverTitles.selected_title,
-    search_intent: `${titleBase}를 찾는 ${targetReader}은 ${contentAngle.coreQuestion} 알고 싶어합니다.`,
+    search_intent: `${input.main_keyword}를 찾는 독자에게 두 제품의 실제 구성과 수령 방법을 설명한다.`,
     selected_products: selectedProducts,
     sections: [
-      {
-        id: "intro",
-        type: "intro" as const,
-        heading: "도입부",
-        body: [
-          `안녕하세요. nothingmatters입니다.`,
-          input.situation || `${withSubjectParticle(targetReader)} ${withObjectParticle(titleBase)} 준비하는 상황이에요.`,
-          imageObservationLead,
-          contentAngle.introLead,
-          `오늘은 ${contentAngle.coreQuestion} 중심으로 제품 2가지를 나누어 볼게요.`,
-        ].filter(Boolean).join("\n\n"),
-      },
-      {
-        id: "empathy",
-        type: "empathy" as const,
-        heading: "상황 공감",
-        body: [
-          input.raw_memo || `${contentAngle.coreQuestion}부터 정리하면 제품을 고르는 순서도 더 자연스러워집니다.`,
-          "그래서 제품 이름보다 먼저 지금 건네는 장면을 살펴보는 편이 좋아요.",
-          formatBulletList(contentAngle.decisionAxes),
-        ].join("\n\n"),
-      },
-      {
-        id: "product-1",
-        type: "product_recommendation" as const,
-        heading: buildProductSectionHeading(first.product_name),
-        body: formatProductRecommendationBody({
-          input,
-          recommendation: first,
-          otherRecommendation: second,
-        }),
-      },
-      {
-        id: "product-2",
-        type: "product_recommendation" as const,
-        heading: buildProductSectionHeading(second.product_name),
-        body: formatProductRecommendationBody({
-          input,
-          recommendation: second,
-          otherRecommendation: first,
-        }),
-      },
-      {
-        id: "recommend-list",
-        type: "recommend_list" as const,
-        heading: "이런 분들께 좋아요",
-        body: formatBulletList([
-          ...contentAngle.readerSignals,
-          `${targetReader}처럼 제품보다 전달할 순간을 먼저 정리하고 싶은 분`,
-        ]),
-      },
-      {
-        id: "order-checklist",
-        type: "order_checklist" as const,
-        heading: "주문 전 체크포인트",
-        body: [
-          "문의하실 때는 길게 설명하지 않으셔도 괜찮아요.",
-          "아래 내용만 먼저 알려주시면 상황에 맞는 쪽으로 더 빠르게 좁혀볼 수 있습니다.",
-          formatBulletList(contentAngle.orderChecks),
-          "아직 하나가 정해지지 않았다면 지금 고민되는 장면만 알려주셔도 괜찮아요.",
-        ].join("\n\n"),
-      },
-      {
-        id: "cta",
-        type: "cta" as const,
-        heading: "마무리",
-        body: [
-          `${input.topic}${topicParticle(input.topic)} ${withSubjectParticle(contentAngle.decisionAxes[0])} 먼저 잡히면 선택도 한결 편해질 때가 많아요.`,
-          `nothingmatters는 ${withObjectParticle(joinWithAnd(contentAngle.decisionAxes.slice(0, 2)))} 함께 보면서 너무 과하지 않은 쪽으로 방향을 잡고 있어요.`,
-          cta,
-        ].join("\n\n"),
-      },
+      { id: "intro", type: "intro" as const, heading: airportTopic ? "비행기 쿠키, 어떤 구성을 찾으세요?" : "어떤 쿠키 구성을 찾으세요?", body: intro },
+      { id: "product-1", type: "product_recommendation" as const, heading: `${firstName}의 구성`, body: productFactBody(first, firstProduct, input) },
+      { id: "product-2", type: "product_recommendation" as const, heading: `${secondName}의 구성`, body: productFactBody(second, secondProduct, input) },
+      { id: "order-checklist", type: "order_checklist" as const, heading: airportTopic ? "공항동 예약 픽업 전에 확인할 것" : "주문 전에 확인할 것", body: pickup },
+      { id: "cta", type: "cta" as const, heading: "필요한 날짜에 맞춰 준비하기", body: input.cta || "원하는 제품과 수량, 필요한 날짜를 알려주시면 가능한 구성을 확인해 드릴게요." },
     ],
-    faq: [
-      {
-        q: `${withObjectParticle(input.topic)} 고를 때 무엇부터 보면 좋을까요?`,
-        a: `${withObjectParticle(joinWithAnd(contentAngle.decisionAxes.slice(0, 2)))} 먼저 정한 뒤, ${joinWithAnd([first.product_name, second.product_name])} 중 더 맞는 쪽을 나누어 보면 편해요.`,
-      },
-      {
-        q: "두 제품은 어떻게 나누어 보면 좋을까요?",
-        a: `${joinWithAnd([first.product_name, second.product_name])}은 누가 받는지와 어떤 장면으로 전할지에 따라 나누어 보면 좋아요.`,
-      },
-      {
-        q: "준비 전에 어떤 내용을 알려주면 좋을까요?",
-        a: `${contentAngle.orderChecks.slice(0, 3).join(", ")} 정도를 먼저 알려주시면 확인이 빨라집니다.`,
-      },
-      {
-        q: "배송도 가능한가요?",
-        a: "일반 택배 가능 여부는 단정하지 않고, 매장 픽업 또는 차량 퀵 기준부터 먼저 봅니다.",
-      },
-    ],
-    hashtags: [
-      input.main_keyword,
-      ...input.sub_keywords,
-      input.topic,
-      first.product_name,
-      second.product_name,
-      "답례품쿠키",
-      "수제쿠키답례품",
-      "커스텀쿠키",
-      "쿠키선물",
-      "nothingmatters",
-      "낫띵메터스",
-      "수제쿠키",
-    ]
-      .map((tag) => `#${tag.replace(/\s+/g, "")}`)
-      .filter((tag, index, tags) => tags.indexOf(tag) === index)
-      .slice(0, 15),
+    faq,
+    hashtags,
     image_guide: [
-      {
-        position: "도입부 아래",
-        image_type: "대표 이미지",
-        caption: observations[0]?.caption ?? `${input.topic}에 어울리는 대표 제품 사진`,
-      },
-      {
-        position: `${first.product_name} 소개 뒤`,
-        image_type: "제품 디테일",
-        caption: `${first.product_name}의 선택 포인트가 보이는 사진을 배치하세요.`,
-      },
-      {
-        position: `${second.product_name} 소개 뒤`,
-        image_type: "전달 장면 사진",
-        caption: `${second.product_name}이 어떤 장면에 어울리는지 보여주는 사진을 배치하세요.`,
-      },
-      {
-        position: "주문 전 체크포인트 앞",
-        image_type: "선택 기준 사진",
-        caption: `${contentAngle.decisionAxes[0]} 쪽이 드러나는 사진을 배치하세요.`,
-      },
-      {
-        position: "마무리 CTA 앞",
-        image_type: "마무리 장면",
-        caption: `${contentAngle.ctaLead} 자연스럽게 이어지는 사진을 배치하세요.`,
-      },
+      { position: "도입부 아래", image_type: "대표 이미지", caption: observations[0]?.caption ?? "실제 제품 사진을 선택해 주세요." },
+      { position: `${firstName} 소개 뒤`, image_type: "제품 구성 사진", caption: "실제 구성과 포장이 보이는 사진을 선택해 주세요." },
+      { position: `${secondName} 소개 뒤`, image_type: "제품 구성 사진", caption: "실제 구성과 포장이 보이는 사진을 선택해 주세요." },
     ],
   };
 
@@ -245,6 +153,62 @@ export function fallbackGenerateBlog(params: {
   };
 }
 
+function publicProductName(name: string) {
+  if (name.startsWith("SNS쿠키")) return "비행기 버터쿠키";
+  return name.replace(/\s*\([^)]*\)/g, "");
+}
+
+function productFactBody(recommendation: ProductRecommendation, product: Product | undefined, input: BlogDraftInput) {
+  const readerLead = recommendation.product_name.startsWith("SNS쿠키")
+    ? "한 개씩 나눠 챙기실 건가요?"
+    : recommendation.product_name.startsWith("쿠키크루")
+      ? "쿠키와 같은 캐릭터의 마그넷도 궁금하신가요?"
+      : "";
+  const details = product?.long_description?.split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence
+      .replace(/,?\s*공식 (?:제품 )?페이지 기준.*$/, "")
+      .replace(/하며$/, "합니다")
+      .trim())
+    .filter((sentence) => contextSafe(sentence, input) && !/공식 사이트|블로그 운영용 별칭|가격/.test(sentence))
+    .map((sentence) => /[.!?]$/.test(sentence) ? sentence : `${sentence}.`)
+    .slice(0, 2) ?? [];
+  if (details.length) return [readerLead, ...details].filter(Boolean).join("\n\n");
+
+  const points = recommendation.main_points.filter(Boolean).slice(0, 2);
+  const fallback = points.length
+    ? `${publicProductName(recommendation.product_name)}${subjectParticle(publicProductName(recommendation.product_name))} ${points.join(", ")} 구성이에요.`
+    : `${publicProductName(recommendation.product_name)}의 자세한 구성은 주문 전에 확인해 주세요.`;
+  return [readerLead, fallback].filter(Boolean).join("\n\n");
+}
+
+function contextSafeSummary(product: Product | undefined, recommendation: ProductRecommendation, input: BlogDraftInput) {
+  const candidates = [product?.short_description, recommendation.summary.one_line_point, ...recommendation.main_points];
+  return candidates.find((candidate) => candidate && contextSafe(candidate, input)) || "주문 전에 구성을 확인할 수 있는 쿠키";
+}
+
+function contextSafe(value: string, input: BlogDraftInput) {
+  const context = `${input.topic} ${input.main_keyword} ${input.situation}`;
+  const markers = ["퇴사", "승진", "육아휴직", "복직", "결혼", "어린이날", "스승의 날", "어버이날"];
+  return markers.every((marker) => !value.includes(marker) || context.includes(marker));
+}
+
+function subjectParticle(value: string) {
+  const last = value.trim().at(-1);
+  const code = last?.charCodeAt(0) ?? 0;
+  return code >= 0xac00 && code <= 0xd7a3 && (code - 0xac00) % 28 !== 0 ? "은" : "는";
+}
+
+function observedImageSentence(observations: ImageObservation[]) {
+  const observation = observations[0];
+  if (!observation) return "";
+  const facts = [
+    observation.visible_products.slice(0, 2).join(", "),
+    observation.colors.length ? `${observation.colors.slice(0, 2).join(", ")} 톤` : "",
+    observation.visible_text.length ? `${observation.visible_text.slice(0, 2).join(", ")} 문구` : "",
+  ].filter(Boolean);
+  return facts.length ? `올려주신 사진에서 ${facts.join(", ")}를 확인할 수 있어요.` : "";
+}
+
 function serializeTitleEvaluations(result: TitleResult) {
   return result.evaluations.map((item) => ({
     title: item.title,
@@ -257,67 +221,12 @@ function serializeTitleEvaluations(result: TitleResult) {
   }));
 }
 
-function buildProductSectionHeading(productName: string) {
-  if (productName.includes("커스텀")) return `문구를 담고 싶다면, ${productName}`;
-  if (productName.includes("행운")) return `가볍게 마음을 전하고 싶을 때, ${productName}`;
-  if (productName.includes("브라우니")) return `많은 분께 깔끔하게 나눌 땐, ${productName}`;
-  if (productName.includes("수제쿠키")) return `귀여운 선물감이 필요할 때, ${productName}`;
-  if (productName.includes("스콘")) return `차분하게 마음을 전하고 싶을 때, ${productName}`;
-  return `${productName}이 편한 상황`;
-}
-
-function formatBulletList(items: string[]) {
-  return items.filter(Boolean).map((item) => `✅ ${item}`).join("\n");
-}
-
-function hasFinalConsonant(value: string) {
-  const char = value.trim().at(-1);
-  if (!char) return false;
-  const code = char.charCodeAt(0);
-  if (code < 0xac00 || code > 0xd7a3) return false;
-  return (code - 0xac00) % 28 !== 0;
-}
-
-function withObjectParticle(value: string) {
-  return `${value}${hasFinalConsonant(value) ? "을" : "를"}`;
-}
-
-function withSubjectParticle(value: string) {
-  return `${value}${hasFinalConsonant(value) ? "이" : "가"}`;
-}
-
-function topicParticle(value: string) {
-  return hasFinalConsonant(value) ? "은" : "는";
-}
-
-function joinWithAnd(values: string[]) {
-  return values.filter(Boolean).reduce((joined, value) => {
-    if (!joined) return value;
-    return `${joined}${hasFinalConsonant(joined) ? "과" : "와"} ${value}`;
-  }, "");
-}
-
-function buildImageObservationLead(observations: ImageObservation[]) {
-  const observation = observations[0];
-  if (!observation) return "";
-
-  const details = [
-    observation.visible_products.filter(Boolean).slice(0, 2).join(", "),
-    observation.colors.length ? `${observation.colors.slice(0, 3).join(", ")} 톤` : "",
-    observation.visible_text.length ? `보이는 문구 ${observation.visible_text.slice(0, 2).join(", ")}` : "",
-    observation.mood,
-  ].filter(Boolean);
-
-  return details.length
-    ? `사진에서는 ${details.join(" / ")}이 확인됩니다. 이 보이는 요소를 기준으로 글의 설명을 이어갈게요.`
-    : "";
-}
-
 export function fallbackCheckDraft(output: BlogDraftOutput, forbiddenWords: string[] = []): DraftQualityCheck {
   const text = [output.plain_text_for_naver, output.wordpress?.markdown_for_wordpress].filter(Boolean).join("\n\n");
   const patternCheck = analyzeReferencePatternFit(output);
   const safetyWarnings = getReferenceSafetyWarnings(text);
   const repeatedPhraseWarnings = getRepeatedPhraseWarnings(text);
+  const editorialLeak = /사장님한마디|공감댓글|품질\/SEO 체크|이미지 배치 안내/.test(output.plain_text_for_naver);
   const risky = [...forbiddenWords, "무조건", "완벽한", "전국 택배 가능", "1위", "최고"].filter(
     (word) => word && text.includes(word),
   );
@@ -353,6 +262,7 @@ export function fallbackCheckDraft(output: BlogDraftOutput, forbiddenWords: stri
         level: "info" as const,
         message,
       })),
+      ...(editorialLeak ? [{ level: "warning" as const, message: "본문에 작성용 라벨이나 편집 안내가 섞였습니다." }] : []),
       ...patternCheck.warnings.slice(0, 3).map((message) => ({
         level: message.includes("정확히 2개") ? ("danger" as const) : ("info" as const),
         message,
@@ -382,6 +292,8 @@ const repeatedAiPhrases = [
   "특별한 답례품입니다",
   "깔끔하게 전달됩니다",
   "자연스럽게 소개하기 좋습니다",
+  "기준을 잡기 편해요",
+  "건네는 장면",
 ];
 
 function getRepeatedPhraseWarnings(text: string) {

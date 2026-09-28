@@ -46,7 +46,7 @@ import { articleBriefs, clusterPillars, firstTenArticles, type ArticleBrief } fr
 import { formatImageGuide, formatMarkdownForWordPress, formatPlainTextForNaver, formatWordPressImageGuide, normalizeCheckBullets } from "@/lib/utils/copyFormat";
 import { getSeoCheck } from "@/lib/utils/formatBlog";
 import { parseJsonFromText } from "@/lib/utils/parseJsonFromText";
-import { applySeoSectionHeadings, buildSeoSectionHeadings } from "@/lib/utils/seoHeadings";
+import { applySeoSectionHeadings, buildSeoSectionHeadings, cleanNaverSectionHeading } from "@/lib/utils/seoHeadings";
 import { splitByComma } from "@/lib/utils/strings";
 import {
   applyLockedNaverTitle,
@@ -1186,7 +1186,7 @@ function NewPostView({
               }}
             />
           </Field>
-          <Field label="메인 키워드" hint="본문 전체 3회 기준">
+          <Field label="메인 키워드" hint="제목에 자연스럽게 포함">
             <Input value={input.main_keyword} placeholder="예: 답례품 쿠키" onChange={(event) => onInput({ ...input, main_keyword: event.target.value })} />
           </Field>
           <Field label="서브 키워드" hint="쉼표로 구분">
@@ -1927,54 +1927,34 @@ function buildTitleCandidates(input: BlogDraftInput, output: BlogDraftOutput) {
 
 function buildFaq(input: BlogDraftInput, output: BlogDraftOutput) {
   const [firstProduct, secondProduct] = output.selected_products;
-  const firstName = firstProduct?.product_name ?? "추천 제품";
-  const secondName = secondProduct?.product_name ?? "다른 구성";
-  const contentAngle = deriveContentAngle(input, output.selected_products);
+  const firstName = firstProduct?.product_name.replace(/\s*\([^)]*\)/g, "") ?? "첫 번째 쿠키";
+  const secondName = secondProduct?.product_name.replace(/\s*\([^)]*\)/g, "") ?? "두 번째 쿠키";
+  const airportTopic = /김포공항|공항동|송정역|비행기|여행/.test(`${input.topic} ${input.main_keyword}`);
 
   return [
     {
-      q: `${input.topic}에서는 어떤 제품이 더 잘 맞나요?`,
-      a: `${contentAngle.decisionAxes.slice(0, 2).join(", ")}부터 정한 뒤 ${firstName}와 ${secondName}을 비교하면 더 편해요.`,
+      q: `${firstName}은 어떤 구성인가요?`,
+      a: firstProduct?.main_points[0] ?? "제품별 구성은 주문 전에 확인해 주세요.",
     },
     {
-      q: "문의할 때 어떤 내용을 먼저 보내면 좋나요?",
-      a: `${contentAngle.orderChecks.slice(0, 3).join(", ")} 정도를 먼저 알려주시면 확인이 빨라집니다.`,
+      q: `${secondName}은 어떤 점이 다른가요?`,
+      a: secondProduct?.main_points[0] ?? "제품별 구성은 주문 전에 확인해 주세요.",
     },
     {
-      q: "아직 방향이 정해지지 않았어도 상담할 수 있나요?",
-      a: "네. 누가 받는지와 어떤 장면으로 전할지만 알려주시면 선택 기준부터 같이 정리해드릴 수 있어요.",
+      q: airportTopic ? "김포공항 안에서 바로 살 수 있나요?" : "수령 날짜는 언제 확인하나요?",
+      a: airportTopic
+        ? "공항 안 매장이 아니라 공항동 작업실의 예약 픽업을 안내합니다. 방문 전 수령 가능 시간을 확인해 주세요."
+        : "제품과 수량에 따라 가능한 날짜를 확인해야 합니다. 필요한 날짜를 먼저 알려주세요.",
     },
     {
-      q: "배송도 가능한가요?",
-      a: "배송 가능 여부를 단정하지 않고, 매장 픽업 또는 차량 퀵 기준으로 먼저 상담드리고 있습니다.",
+      q: "주문 전에 무엇을 알려주면 되나요?",
+      a: "원하는 제품과 수량, 필요한 날짜를 알려주시면 가능한 구성을 확인할 수 있습니다.",
     },
   ];
 }
 
 function buildRicherFaq(input: BlogDraftInput, output: BlogDraftOutput) {
-  const [firstProduct, secondProduct] = output.selected_products;
-  const firstName = firstProduct?.product_name ?? "추천 제품";
-  const secondName = secondProduct?.product_name ?? "다른 구성";
-  const contentAngle = deriveContentAngle(input, output.selected_products);
-
-  return [
-    {
-      q: `${input.main_keyword || input.topic}으로 ${firstName}와 ${secondName} 중 어떤 구성이 더 잘 맞나요?`,
-      a: `${contentAngle.decisionAxes.slice(0, 2).join(", ")} 기준으로 ${firstName}와 ${secondName}을 비교해보면 좋아요.`,
-    },
-    {
-      q: "문의할 때 어떤 정보를 먼저 보내면 좋나요?",
-      a: `${contentAngle.orderChecks.slice(0, 4).join(", ")}을 먼저 알려주시면 확인이 빠릅니다.`,
-    },
-    {
-      q: "문구를 아직 정하지 못했어도 상담할 수 있나요?",
-      a: "네. 행사 종류와 전하고 싶은 분위기를 먼저 알려주시면 짧고 깔끔한 방향으로 같이 정리해드릴 수 있어요.",
-    },
-    {
-      q: "사진은 어떤 순서로 올리면 글이 자연스러울까요?",
-      a: "대표 사진, 제품 디테일, 전달 장면, 선택 기준이 보이는 사진 순서로 배치하면 모바일에서 보기 편합니다.",
-    },
-  ];
+  return buildFaq(input, output);
 }
 
 function buildExpandedImageGuide(input: BlogDraftInput, output: BlogDraftOutput) {
@@ -1987,7 +1967,7 @@ function buildExpandedImageGuide(input: BlogDraftInput, output: BlogDraftOutput)
       caption: `${input.topic} 분위기가 한눈에 보이는 대표 사진을 먼저 배치하세요.`,
     },
     {
-      position: "상황 공감 섹션 뒤",
+      position: "도입 뒤",
         image_type: "전달 장면 사진",
         caption: `${contentAngle.decisionAxes[0]} 쪽이 떠오르는 사진이 좋습니다.`,
     },
@@ -2102,8 +2082,6 @@ function buildManualPrompt({
     default_cta: brand.default_cta,
     forbidden_words: brand.forbidden_words,
   };
-  const naverSectionHeadings = buildSeoSectionHeadings(input, selectedProducts);
-  const contentAngle = deriveContentAngle(input, selectedProducts);
   const commonData = `
 프롬프트 버전: ${WRITING_PROMPT_VERSION}
 
@@ -2119,8 +2097,6 @@ ${JSON.stringify(selectedDetails, null, 2)}
 사진 관찰 결과:
 ${JSON.stringify(observations, null, 2)}
 
-${kind === "naver" ? `이번 글의 콘텐츠 각도:\n${JSON.stringify(contentAngle, null, 2)}` : ""}
-
 원문 제거 참고 패턴:
 ${JSON.stringify(referencePatternPayload(input.reference_style), null, 2)}
 `.trim();
@@ -2135,6 +2111,9 @@ ${buildLockedNaverTitleInstructions(selectedTitle, titleCandidates.length)}
 - 워드프레스 객체는 만들지 않는다.
 - 제품은 아래 selected_products 2개만 소개한다.
 - 없는 후기, 고객 반응, 전국 택배 가능, 과장 표현은 쓰지 않는다.
+- selected_products와 제품 DB는 사실 확인용이다. owner_comment와 summary의 문장을 본문에 복사하거나 사장님한마디 블록으로 만들지 않는다.
+- 독자가 실제로 궁금해할 질문에 먼저 답한다. 두 제품 중 제목의 주인공에 더 많은 분량을 쓰고, 공통 조언을 반복하지 않는다.
+- 본문에 이미지 배치, 품질 체크, 공감댓글 같은 편집 문구를 넣지 않는다.
 - 내부 예제 글 원문이나 다른 브랜드명은 절대 재사용하지 않는다.
 - 출력은 설명 없이 JSON 객체만 작성한다.
 - 마크다운 코드블록(\`\`\`) 없이 JSON만 출력한다.
@@ -2147,13 +2126,11 @@ ${commonData}
 {
   "search_intent": "검색자의 의도",
   "sections": [
-    { "id": "intro", "type": "intro", "heading": "${naverSectionHeadings[0]}", "body": "본문" },
-    { "id": "empathy", "type": "empathy", "heading": "${naverSectionHeadings[1]}", "body": "본문" },
-    { "id": "product-1", "type": "product_recommendation", "heading": "${naverSectionHeadings[2]}", "body": "본문" },
-    { "id": "product-2", "type": "product_recommendation", "heading": "${naverSectionHeadings[3]}", "body": "본문" },
-    { "id": "recommend-list", "type": "recommend_list", "heading": "이런 분들께 좋아요", "body": "본문" },
-    { "id": "order-checklist", "type": "order_checklist", "heading": "주문 전 체크포인트", "body": "본문" },
-    { "id": "cta", "type": "cta", "heading": "마무리", "body": "본문" }
+    { "id": "intro", "type": "intro", "heading": "독자의 질문에 답하는 제목", "body": "확인된 답과 필요한 맥락" },
+    { "id": "product-1", "type": "product_recommendation", "heading": "대표 제품의 실제 특징을 담은 제목", "body": "확인된 구성과 독자가 알면 좋은 차이" },
+    { "id": "product-2", "type": "product_recommendation", "heading": "다른 제품의 고유한 특징을 담은 제목", "body": "확인된 구성과 대표 제품과 다른 점" },
+    { "id": "order-checklist", "type": "order_checklist", "heading": "예약 또는 주문 전에 확인할 내용", "body": "일정과 수령에 관한 사실" },
+    { "id": "cta", "type": "cta", "heading": "자연스러운 다음 행동", "body": "독자에게 필요한 한 가지 행동" }
   ],
   "faq": [
     { "q": "질문", "a": "답변" },
@@ -2161,7 +2138,7 @@ ${commonData}
     { "q": "질문", "a": "답변" },
     { "q": "질문", "a": "답변" }
   ],
-  "hashtags": ["#태그1", "#태그2", "#태그3", "#태그4", "#태그5", "#태그6", "#태그7", "#태그8", "#태그9", "#태그10"],
+  "hashtags": ["#핵심키워드", "#관련주제", "#제품명", "#지역", "#쿠키선물", "#수제쿠키", "#nothingmatters"],
   "image_guide": [
     { "position": "도입부 아래", "image_type": "대표 이미지", "caption": "사진 아래 문장" },
     { "position": "${selectedProducts[0]?.product_name ?? "첫 번째 제품"} 소개 뒤", "image_type": "제품 디테일", "caption": "사진 아래 문장" },
@@ -2324,6 +2301,7 @@ function normalizeManualOutput(
   const sections = normalizeSections(raw.sections, raw.blog_body, raw.plain_text_for_naver, input, normalizedProducts);
 
   const outputWithoutPlain = {
+    naver_source: Array.isArray(raw.sections) && raw.sections.length >= 5 ? "generated" as const : "template" as const,
     title_candidates: titleCandidates,
     selected_title: typeof raw.selected_title === "string" ? raw.selected_title : titleCandidates[0],
     search_intent: baseForTitle.search_intent,
@@ -2616,14 +2594,13 @@ function normalizeSections(
   selectedProducts: ProductRecommendation[],
 ) {
   const seoHeadings = buildSeoSectionHeadings(input, selectedProducts);
-  const contentAngle = deriveContentAngle(input, selectedProducts);
-  if (Array.isArray(rawSections) && rawSections.length >= 6) {
+  if (Array.isArray(rawSections) && rawSections.length >= 5) {
     return rawSections.map((section, index) => {
       const raw = section as { id?: unknown; type?: unknown; heading?: unknown; body?: unknown };
       return {
         id: typeof raw.id === "string" ? raw.id : `section-${index + 1}`,
         type: isSectionType(raw.type) ? raw.type : sectionTypeByIndex(index),
-        heading: seoHeadings[index] ?? (typeof raw.heading === "string" ? raw.heading : `섹션 ${index + 1}`),
+        heading: typeof raw.heading === "string" && raw.heading.trim() ? cleanNaverSectionHeading(raw.heading) : seoHeadings[index] ?? `섹션 ${index + 1}`,
         body: typeof raw.body === "string" ? normalizeCheckBullets(raw.body) : "",
       };
     });
@@ -2637,43 +2614,31 @@ function normalizeSections(
       id: "intro",
       type: "intro" as const,
       heading: seoHeadings[0],
-      body: paragraphs.slice(0, 2).join("\n\n") || `${input.topic}을 준비하는 분들이 참고하기 좋은 글입니다.`,
-    },
-    {
-      id: "empathy",
-      type: "empathy" as const,
-      heading: seoHeadings[1],
-      body: paragraphs.slice(2, 4).join("\n\n") || `${input.situation || input.raw_memo || `${contentAngle.coreQuestion} 함께 고민하게 되는 상황입니다.`}`,
+      body: paragraphs.slice(0, 2).join("\n\n") || `${input.main_keyword}를 찾으신다면 두 제품의 실제 구성부터 살펴보세요.`,
     },
     {
       id: "product-1",
       type: "product_recommendation" as const,
-      heading: seoHeadings[2],
-      body: selectedProducts[0]?.reason ?? "첫 번째 추천 제품 설명",
+      heading: seoHeadings[1],
+      body: selectedProducts[0]?.summary.one_line_point ?? "첫 번째 제품의 구성을 확인해 주세요.",
     },
     {
       id: "product-2",
       type: "product_recommendation" as const,
-      heading: seoHeadings[3],
-      body: selectedProducts[1]?.reason ?? "두 번째 추천 제품 설명",
-    },
-    {
-      id: "recommend-list",
-      type: "recommend_list" as const,
-      heading: seoHeadings[4],
-      body: contentAngle.readerSignals.map((item) => `✅ ${item}`).join("\n"),
+      heading: seoHeadings[2],
+      body: selectedProducts[1]?.summary.one_line_point ?? "두 번째 제품의 구성을 확인해 주세요.",
     },
     {
       id: "order-checklist",
       type: "order_checklist" as const,
-      heading: seoHeadings[5],
-      body: contentAngle.orderChecks.map((item) => `✅ ${item}`).join("\n"),
+      heading: seoHeadings[3],
+      body: "원하는 제품과 수량, 필요한 날짜를 정한 뒤 수령 가능한 시간을 확인해 주세요.",
     },
     {
       id: "cta",
       type: "cta" as const,
-      heading: seoHeadings[6],
-      body: input.cta || `${contentAngle.ctaLead} 어떤 구성이 편할지 같이 좁혀볼게요.`,
+      heading: seoHeadings[4],
+      body: input.cta || "원하는 제품과 날짜를 알려주시면 가능한 구성을 확인해 드릴게요.",
     },
   ];
 }
@@ -2692,26 +2657,23 @@ function normalizeFaq(rawFaq: unknown, input: BlogDraftInput, output: BlogDraftO
 
 function normalizeHashtags(rawHashtags: unknown, input: BlogDraftInput, selectedProducts: ProductRecommendation[]) {
   const base = Array.isArray(rawHashtags) ? rawHashtags.map(String) : [];
+  const shortProductNames = selectedProducts.map((product) => product.product_name.startsWith("SNS쿠키")
+    ? "비행기버터쿠키"
+    : product.product_name.replace(/\s*\([^)]*\)/g, ""));
+  const compactTopic = input.topic.replace(/\s+/g, "");
   return [
-    ...base,
     input.main_keyword,
-    input.topic,
     ...input.sub_keywords,
-    ...selectedProducts.map((product) => product.product_name),
-    "답례품쿠키",
+    ...shortProductNames,
+    ...base,
     "수제쿠키",
-    "쿠키답례품",
-    "회사답례품",
-    "행사답례품",
-    "커스텀쿠키",
-    "브라우니쿠키",
-    "수제쿠키선물",
+    "쿠키선물",
     "nothingmatters",
     "낫띵메터스",
   ]
     .map((tag) => `#${tag.replace(/^#/, "").replace(/\s+/g, "")}`)
-    .filter((tag, index, tags) => tag.length > 1 && tags.indexOf(tag) === index)
-    .slice(0, 15);
+    .filter((tag, index, tags) => tag.length > 1 && tag.length <= 17 && tag !== `#${compactTopic}` && tag !== "#SNS쿠키" && !/[｜|,()]/.test(tag) && tags.indexOf(tag) === index)
+    .slice(0, 10);
 }
 
 function normalizeImageGuide(rawGuide: unknown, selectedProducts: ProductRecommendation[], input: BlogDraftInput) {
@@ -2762,7 +2724,7 @@ function isSectionType(value: unknown): value is BlogDraftOutput["sections"][num
 }
 
 function sectionTypeByIndex(index: number): BlogDraftOutput["sections"][number]["type"] {
-  return (["intro", "empathy", "product_recommendation", "product_recommendation", "recommend_list", "order_checklist", "cta"] as const)[index] ?? "intro";
+  return (["intro", "product_recommendation", "product_recommendation", "order_checklist", "cta"] as const)[index] ?? "intro";
 }
 
 function EditorView({
@@ -2866,6 +2828,11 @@ function EditorView({
       </details>
       {activeEditorTab === "naver" ? (
         <>
+      {currentOutput.naver_source === "template" ? (
+        <div className="rounded-md border border-[#f0d6a7] bg-[#fff8e9] p-3 text-[12px] leading-5 text-[#765520]">
+          네이버 글은 아직 AI로 생성되지 않았습니다. 아래 내용은 제품 정보로 만든 임시 초안입니다. 네이버 본문 프롬프트로 글을 만든 뒤 JSON을 반영해 주세요.
+        </div>
+      ) : null}
       <TitleSelector
         channel="naver"
         mainKeyword={input.main_keyword}
@@ -2938,7 +2905,7 @@ function EditorView({
             variant="secondary"
             className="h-8 px-2 text-[12px]"
             icon={<WandSparkles className="size-3.5" />}
-            onClick={() => void regenerateSections(["intro"], "도입부에 독자가 실제로 고민할 만한 현실 질문을 2~3개 더 넣고 자연스럽게 시작하기")}
+            onClick={() => void regenerateSections(["intro"], "독자가 묻는 질문 하나에 첫 문장에서 답하고, 제품의 확인된 특징으로 이어가기")}
           >
             도입부 현실 고민
           </Button>
@@ -2946,9 +2913,9 @@ function EditorView({
             type="button"
             variant="secondary"
             className="h-8 px-2 text-[12px]"
-            onClick={() => void regenerateSections(["empathy"], "입력된 상황과 사진에서 드러난 선택 기준 3개를 추가하기")}
+            onClick={() => void regenerateSections(productSectionIds, "두 제품의 확인된 구성과 서로 다른 점을 구체적으로 쓰고 반복 문장은 삭제하기")}
           >
-            선택 기준 3개
+            제품 차이 구체화
           </Button>
           <Button type="button" variant="secondary" className="h-8 px-2 text-[12px]" onClick={enrichFaq}>
             FAQ 현실적으로
@@ -3189,7 +3156,7 @@ function ProductSectionSummaryCard({ recommendation }: { recommendation: Product
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="text-[13px] font-bold text-[#362f28]">{recommendation.product_name} 본문 요약</h3>
-          <p className="mt-1 text-[12px] leading-5 text-[#7b7166]">본문 첫 줄은 직접 만드는 사람이 조용히 기준을 골라주듯 들어갑니다.</p>
+          <p className="mt-1 text-[12px] leading-5 text-[#7b7166]">제품 이해를 돕는 내부 메모입니다. 본문에는 자동으로 들어가지 않습니다.</p>
         </div>
         <StatusPill tone={missingInfo.length ? "warning" : "success"}>
           {missingInfo.length ? "자료 보강 필요" : "요약 준비"}

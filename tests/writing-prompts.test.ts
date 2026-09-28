@@ -5,8 +5,8 @@ import { sectionRegeneratorPrompt } from "@/lib/prompts/section-regenerator";
 import { wordpressLayoutPrompt } from "@/lib/prompts/wordpress-layout";
 
 describe("writing prompt contracts", () => {
-  it("keeps the Naver prompt outcome-first and evidence-bound", () => {
-    expect(blogLayoutPrompt).toContain("성공 기준");
+  it("keeps the Naver prompt reader-facing and evidence-bound", () => {
+    expect(blogLayoutPrompt).toContain("첫 두 문장에서 독자에게 바로 답한다");
     expect(blogLayoutPrompt).toContain("근거 우선순위");
     expect(blogLayoutPrompt).toContain("사용자 입력");
     expect(blogLayoutPrompt).toContain("제품 DB");
@@ -14,11 +14,11 @@ describe("writing prompt contracts", () => {
     expect(blogLayoutPrompt).toContain("추정하지 않는다");
   });
 
-  it("locks the requested keyword budget without stuffing", () => {
-    expect(blogLayoutPrompt).toContain("메인 키워드는 완성 본문 전체에서 정확히 3회");
-    expect(blogLayoutPrompt).toContain("서브 키워드는 각 키워드별 최대 2회");
-    expect(blogLayoutPrompt).toContain("해시태그까지 합산");
-    expect(blogLayoutPrompt).toContain("최종 제목 1회, 도입 본문 1회, 해시태그 1회");
+  it("avoids mechanical keyword and structure quotas", () => {
+    expect(blogLayoutPrompt).toContain("정확한 횟수를 맞추려고 문장을 추가하지 않는다");
+    expect(blogLayoutPrompt).toContain("sections는 정확히 5개");
+    expect(blogLayoutPrompt).toContain("해시태그는 관련 있는 5~10개만");
+    expect(blogLayoutPrompt).not.toContain("정확히 3회 사용한다");
   });
 
   it("uses platform-specific mixed title shapes instead of forcing every title into a question", () => {
@@ -40,7 +40,7 @@ describe("writing prompt contracts", () => {
 
   it("gives both long-form channels a grounded owner voice without invented scenes", () => {
     expect(blogLayoutPrompt).toContain("사장님 생활 말투");
-    expect(blogLayoutPrompt).toContain("입력에 없는 작업 장면은 만들지 않는다");
+    expect(blogLayoutPrompt).toContain("작업 장면을 꾸며내지 말고");
     expect(blogLayoutPrompt).toContain("생활형 판단");
     expect(wordpressLayoutPrompt).toContain("사장님 생활 말투");
     expect(wordpressLayoutPrompt).toContain("없는 실수, 작업 장면, 고객 반응, 감정은 만들지 않는다");
@@ -63,7 +63,7 @@ describe("writing prompt contracts", () => {
 
   it("keeps section regeneration inside the same evidence and keyword rules", () => {
     expect(sectionRegeneratorPrompt).toContain("새 사실을 추가하지 않는다");
-    expect(sectionRegeneratorPrompt).toContain("글 전체 키워드 예산");
+    expect(sectionRegeneratorPrompt).toContain("불필요하게 반복되지 않도록");
     expect(sectionRegeneratorPrompt).toContain("수정된 body만");
   });
 

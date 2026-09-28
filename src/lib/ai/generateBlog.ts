@@ -9,7 +9,6 @@ import { referencePatternPayload } from "@/lib/reference/blog-patterns";
 import { applyEditorialProductSections } from "@/lib/product/editorial";
 import { formatMarkdownForWordPress, formatPlainTextForNaver, normalizeCheckBullets } from "@/lib/utils/copyFormat";
 import { applySeoSectionHeadings } from "@/lib/utils/seoHeadings";
-import { deriveContentAngle } from "@/lib/content/angle";
 import { buildTitleGenerationPrompt, buildTitleTopic, normalizeTitlePackage, normalizeTitleResult, type TitleResult } from "@/lib/title-workflow";
 import { fallbackGenerateBlog } from "./fallbacks";
 import { runStructuredResponse } from "./openai";
@@ -22,7 +21,6 @@ export async function generateBlog(params: {
   products?: Product[];
 }) {
   const fallbackOutput = fallbackGenerateBlog(params);
-  const contentAngle = deriveContentAngle(params.input, params.selectedProducts);
   const titlePlanResponse = await runStructuredResponse({
     schema: titleGenerationOutputSchema,
     schemaName: "blog_title_generation_output",
@@ -45,9 +43,19 @@ export async function generateBlog(params: {
     input: {
       input: params.input,
       selected_products: params.selectedProducts,
+      product_facts: params.products?.filter((product) =>
+        params.selectedProducts.some((selected) => selected.product_name === product.name),
+      ).map((product) => ({
+        name: product.name,
+        short_description: product.short_description,
+        long_description: product.long_description,
+        fit_situations: product.fit_situations,
+        strengths: product.strengths,
+        cautions: product.cautions,
+        default_faq: product.default_faq,
+      })) ?? [],
       image_observations: params.observations,
       reference_pattern: referencePatternPayload(params.input.reference_style),
-      content_angle: contentAngle,
       title_plan: {
         title_candidates: titlePlan.naver.candidates,
         selected_title: titlePlan.naver.selectedTitle,
@@ -118,6 +126,7 @@ export async function generateBlog(params: {
 
   return {
     ...naverOutput,
+    naver_source: naverResult ? "generated" as const : "template" as const,
     wordpress: { ...wordpress, source: wordpressResult ? "generated" as const : "template" as const },
     title_analysis: {
       naver: serializeTitleEvaluations(titlePlan.naver),

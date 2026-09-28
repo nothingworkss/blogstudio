@@ -97,6 +97,7 @@ export type TitleCandidateGroupRecord = {
 };
 
 export type BlogDraftOutput = {
+  naver_source?: "generated" | "template";
   title_candidates: string[];
   selected_title: string;
   search_intent: string;

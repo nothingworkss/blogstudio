@@ -1,7 +1,6 @@
 import { z } from "zod";
 import type { BlogDraftOutput } from "@/types/blog";
 import { sectionRegeneratorPrompt } from "@/lib/prompts/section-regenerator";
-import { referencePatternPrompt } from "@/lib/reference/blog-patterns";
 import { runStructuredResponse } from "./openai";
 
 const regenerateSectionSchema = z.object({
@@ -20,7 +19,7 @@ export async function regenerateSection(params: {
   const aiResult = await runStructuredResponse({
     schema: regenerateSectionSchema,
     schemaName: "regenerated_section",
-    instructions: [sectionRegeneratorPrompt, referencePatternPrompt()].join("\n\n"),
+    instructions: sectionRegeneratorPrompt,
     input: {
       section_name: params.section_name,
       instruction: params.instruction,
@@ -45,5 +44,5 @@ export async function regenerateSection(params: {
   if (params.instruction.includes("광고") || params.instruction.includes("판매")) {
     return currentBody.replaceAll("주문", "준비").replace(/상담 가능(?:합니다|해요)/g, "필요한 기준부터 같이 볼게요");
   }
-  return `${currentBody}\n\n${params.instruction} 톤을 반영해 조금 더 담백하게 다듬어 주세요.`;
+  return currentBody;
 }
