@@ -41,7 +41,13 @@ export async function listProducts(): Promise<Product[]> {
     .order("created_at", { ascending: true });
 
   if (error || !data) return memory.products;
-  return data as Product[];
+  const saved = data as Product[];
+  const savedIds = new Set(saved.map((product) => product.id));
+  const refreshed = saved.map((product) => {
+    const currentTerminal = seedProducts.find((seed) => seed.id === product.id && seed.id.endsWith("0006"));
+    return currentTerminal && product.long_description?.includes("출시 준비 중") ? currentTerminal : product;
+  });
+  return [...refreshed, ...seedProducts.filter((product) => !savedIds.has(product.id))];
 }
 
 export async function upsertProduct(product: Partial<Product> & Pick<Product, "name" | "category">) {

@@ -41,6 +41,7 @@ import {
 } from "@/lib/product/editorial";
 import { getReferencePattern, referencePatternPayload, referenceStyles } from "@/lib/reference/blog-patterns";
 import { deriveContentAngle } from "@/lib/content/angle";
+import { articleBriefs, clusterPillars, firstTenArticles, type ArticleBrief } from "@/lib/content/cluster-plan";
 import { formatImageGuide, formatMarkdownForWordPress, formatPlainTextForNaver, formatWordPressImageGuide, normalizeCheckBullets } from "@/lib/utils/copyFormat";
 import { getSeoCheck } from "@/lib/utils/formatBlog";
 import { parseJsonFromText } from "@/lib/utils/parseJsonFromText";
@@ -75,9 +76,25 @@ import { HashtagBox } from "./HashtagBox";
 import { SectionCard } from "./SectionCard";
 import { TitleSelector } from "./TitleSelector";
 
-const postTypes: PostType[] = ["답례품 판매형", "시즌 선물형", "작업일기형", "제품 소개형", "검색 유입 정보형"];
+const postTypes: PostType[] = ["클러스터 대장 글", "클러스터 연결 글", "브랜드 스토리형", "지역 픽업 안내형", "답례품 판매형", "시즌 선물형", "작업일기형", "제품 소개형", "검색 유입 정보형"];
 
-const starterTopics = ["퇴사 답례품", "어린이날 선물", "스승의 날 선물", "결혼 답례품"];
+const starterTopics = firstTenArticles.slice(0, 4).map((brief) => brief.keyword);
+
+function applyArticleBrief(input: BlogDraftInput, brief: ArticleBrief): BlogDraftInput {
+  const isPillar = brief.id.startsWith("pillar-");
+  return {
+    ...input,
+    topic: brief.title,
+    main_keyword: brief.keyword,
+    sub_keywords: isPillar ? brief.relatedKeywords.slice(0, 3) : brief.relatedKeywords,
+    target_reader: `${brief.cluster} 주제로 선물이나 쿠키를 찾는 사람`,
+    situation: `${brief.cluster} 클러스터의 ${brief.postType}입니다. ${brief.keyword} 검색 의도에 답합니다.`,
+    raw_memo: `추천 제목: ${brief.title}\n대표 제품: ${brief.primaryProduct}. ${brief.note}${isPillar ? `\n연결 글 기획 키워드: ${brief.relatedKeywords.join(", ")}. 한 글에 모든 주제를 억지로 넣지 말고, 각 검색 의도는 별도 글로 다룬다.` : ""}`,
+    post_type: brief.postType,
+    reference_style: styleFromPostType(brief.postType),
+    preferred_products: [brief.primaryProduct],
+  };
+}
 
 type GenerationMode = "auto" | "semi";
 type WorkflowStep = "observe" | "select" | "generate" | "check";
@@ -228,10 +245,9 @@ export function BlogStudioApp({
   }
 
   function startNewPost(topic = "") {
+    const brief = [...firstTenArticles, ...clusterPillars].find((item) => item.keyword === topic || item.title === topic);
     setInput({
-      ...emptyInput,
-      topic,
-      main_keyword: topic,
+      ...(brief ? applyArticleBrief(emptyInput, brief) : { ...emptyInput, topic, main_keyword: topic }),
       cta: brandDraft.default_cta || defaultInput.cta,
     });
     setSelectedProducts([]);
@@ -911,7 +927,7 @@ function DashboardView({
               주제와 짧은 메모만 정하면 제품 선택부터 네이버·워드프레스 초안까지 한 흐름으로 완성됩니다.
             </p>
           </div>
-          <Button type="button" variant="primary" className="h-11 w-full px-5 sm:w-auto" icon={<Plus className="size-4" />} onClick={() => onNew("퇴사 답례품")}>
+          <Button type="button" variant="primary" className="h-11 w-full px-5 sm:w-auto" icon={<Plus className="size-4" />} onClick={() => onNew("김포공항 선물")}>
             새 글 시작
           </Button>
         </div>
@@ -959,7 +975,7 @@ function DashboardView({
           )) : (
             <div className="flex flex-col items-start gap-3 px-1 py-7 sm:flex-row sm:items-center sm:justify-between sm:px-3">
               <p className="text-[13px] leading-6 text-[#6f6f6a]">아직 저장된 초안이 없습니다. 위 추천 주제로 첫 글을 시작해 보세요.</p>
-              <Button type="button" variant="secondary" onClick={() => onNew("퇴사 답례품")}>첫 글 만들기</Button>
+              <Button type="button" variant="secondary" onClick={() => onNew("김포공항 선물")}>첫 글 만들기</Button>
             </div>
           )}
         </div>
@@ -1131,6 +1147,29 @@ function NewPostView({
             <p className="mt-1 text-[12px] text-[#6f6f6a]">검색 주제와 실제 상황을 먼저 입력해 주세요.</p>
           </div>
           <StatusPill tone="success">필수</StatusPill>
+        </div>
+        <div className="mb-5 rounded-[12px] border border-[#e9dfd3] bg-[#fffbf6] p-4">
+          <Field label="클러스터 글 시작" hint="대장 글 4개 · 우선 발행 10개">
+            <select
+              className="studio-select"
+              value=""
+              onChange={(event) => {
+                const brief = articleBriefs.find((item) => item.id === event.target.value);
+                if (!brief) return;
+                onClearProducts();
+                onInput(applyArticleBrief(input, brief));
+              }}
+            >
+              <option value="">글 기획을 선택하세요</option>
+              <optgroup label="클러스터 대장 글">
+                {clusterPillars.map((brief) => <option key={brief.id} value={brief.id}>{brief.cluster} · {brief.title}</option>)}
+              </optgroup>
+              <optgroup label="우선 발행 순서">
+                {firstTenArticles.map((brief, index) => <option key={brief.id} value={brief.id}>{index + 1}. {brief.keyword} · {brief.title}</option>)}
+              </optgroup>
+            </select>
+          </Field>
+          <p className="mt-2 text-[12px] leading-5 text-[#7b7166]">선택하면 주제, 메인 키워드, 대표 제품과 글 타입이 채워집니다. 제목과 메모는 편집할 수 있습니다.</p>
         </div>
         <div className="grid gap-4 lg:grid-cols-2">
           <Field label="글 주제">
@@ -1997,10 +2036,10 @@ function recommendationFromProduct(product: Product, input: BlogDraftInput): Pro
 }
 
 function styleFromPostType(postType: PostType): ReferenceStyle {
-  if (postType === "검색 유입 정보형") return "검색 유입 정보형";
+  if (["검색 유입 정보형", "클러스터 대장 글", "클러스터 연결 글", "지역 픽업 안내형"].includes(postType)) return "검색 유입 정보형";
   if (postType === "시즌 선물형") return "시즌 선물형";
   if (postType === "제품 소개형") return "제품 디테일형";
-  if (postType === "작업일기형") return "작업일기형";
+  if (postType === "작업일기형" || postType === "브랜드 스토리형") return "작업일기형";
   return "답례품 추천형";
 }
 

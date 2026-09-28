@@ -8,6 +8,10 @@ export const postTypeSchema = z.enum([
   "작업일기형",
   "제품 소개형",
   "검색 유입 정보형",
+  "클러스터 대장 글",
+  "클러스터 연결 글",
+  "브랜드 스토리형",
+  "지역 픽업 안내형",
 ]);
 
 export const referenceStyleSchema = z.enum([
