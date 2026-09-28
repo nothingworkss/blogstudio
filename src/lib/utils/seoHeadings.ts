@@ -28,22 +28,18 @@ export function buildWordPressSectionHeadings(
   input: BlogDraftInput,
   selectedProducts: ProductRecommendation[],
 ) {
-  const mainKeyword = cleanKeyword(input.main_keyword || input.topic || "쿠키 선물");
-  const subKeywords = uniqueKeywords(input.sub_keywords.map(cleanKeyword)).filter(Boolean);
   const firstProduct = selectedProducts[0]?.product_name || "첫 번째 쿠키";
   const secondProduct = selectedProducts[1]?.product_name || "두 번째 쿠키";
-  const angle = deriveContentAngle(input, selectedProducts);
-  const headings = [
-    `${mainKeyword}, ${angle.decisionHeading}`,
-    optionalKeywordHeading(subKeywords[0], angle.decisionAxes[0]),
-    `${firstProduct} 선택이 편한 상황과 포인트`,
-    `${secondProduct} 선택이 편한 상황과 비교 기준`,
-    optionalKeywordHeading(subKeywords[1], "두 제품 사이에서 기준을 좁히는 법"),
-    angle.checkHeading,
-    "문의 전에 마지막으로 정리할 점",
+  const isAirport = /김포공항|공항동|송정역|제주여행/.test([input.topic, input.main_keyword].join(" "));
+  const firstShort = firstProduct.replace(/\s*\([^)]*\)/g, "");
+  const secondShort = secondProduct.replace(/\s*\([^)]*\)/g, "");
+  return [
+    isAirport ? "김포공항 근처에서 선물을 챙긴다면" : "선물의 실제 구성부터 살펴보기",
+    firstShort.includes("쿠키플라이트") ? "네 가지 맛을 담은 쿠키플라이트" : `${firstShort}의 실제 구성`,
+    secondShort.includes("쿠키크루") ? "쿠키와 마그넷을 함께 고르는 쿠키크루" : `${secondShort}의 실제 구성`,
+    isAirport ? "공항동 예약 픽업 전에 확인할 것" : "주문 전에 확인할 것",
+    "필요한 날짜에 맞춰 준비하기",
   ];
-  const prefixes = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣"];
-  return headings.map((heading, index) => `${prefixes[index]} ${heading}`);
 }
 
 export function applySeoSectionHeadings<
@@ -55,7 +51,6 @@ export function applySeoSectionHeadings<
 >(output: T, input: BlogDraftInput): T {
   const mainKeyword = cleanKeyword(input.main_keyword || input.topic || "쿠키 선물");
   const headings = buildSeoSectionHeadings(input, output.selected_products);
-  const wordpressHeadings = buildWordPressSectionHeadings(input, output.selected_products);
   const sections = output.sections.map((section, index) => ({
     ...section,
     heading: headings[index] ?? section.heading,
@@ -67,15 +62,7 @@ export function applySeoSectionHeadings<
   return {
     ...output,
     sections,
-    wordpress: output.wordpress
-      ? {
-          ...output.wordpress,
-          sections: output.wordpress.sections.map((section, index) => ({
-            ...section,
-            heading: wordpressHeadings[index] ?? section.heading,
-          })),
-        }
-      : output.wordpress,
+    wordpress: output.wordpress,
   } as T;
 }
 

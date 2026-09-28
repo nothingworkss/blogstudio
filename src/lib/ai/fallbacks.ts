@@ -1,4 +1,4 @@
-import type { BlogDraftInput, BlogDraftOutput, DraftQualityCheck, WordPressDraftOutput } from "@/types/blog";
+import type { BlogDraftInput, BlogDraftOutput, DraftQualityCheck } from "@/types/blog";
 import type { ImageObservation } from "@/types/image";
 import type { Brand, Product, ProductRecommendation } from "@/types/product";
 import { analyzeReferencePatternFit, getReferenceSafetyWarnings } from "@/lib/reference/blog-patterns";
@@ -7,10 +7,11 @@ import {
   formatProductRecommendationBody,
   hydrateRecommendation,
 } from "@/lib/product/editorial";
-import { formatMarkdownForWordPress, formatPlainTextForNaver } from "@/lib/utils/copyFormat";
-import { applySeoSectionHeadings, buildWordPressSectionHeadings } from "@/lib/utils/seoHeadings";
+import { formatPlainTextForNaver } from "@/lib/utils/copyFormat";
+import { applySeoSectionHeadings } from "@/lib/utils/seoHeadings";
+import { buildWordPressFallback } from "@/lib/content/wordpress-fallback";
 import { deriveContentAngle } from "@/lib/content/angle";
-import { buildLocalTitleCandidates, buildLocalTitlePackage, getTitleWarnings, normalizeTitleResult, type TitleResult } from "@/lib/title-workflow";
+import { buildLocalTitlePackage, getTitleWarnings, normalizeTitleResult, type TitleResult } from "@/lib/title-workflow";
 import { selectProductsByScore } from "./selectProducts";
 
 export function fallbackSelectProducts(
@@ -55,6 +56,7 @@ export function fallbackGenerateBlog(params: {
   brand: Brand;
   selectedProducts: ProductRecommendation[];
   observations: ImageObservation[];
+  products?: Product[];
 }): BlogDraftOutput {
   const { input, selectedProducts, observations } = params;
   const [first, second] = selectedProducts.map((product) => ensureRecommendationEditorialDefaults(product, input));
@@ -225,12 +227,11 @@ export function fallbackGenerateBlog(params: {
 
   return {
     ...outputWithPlain,
-    wordpress: buildFallbackWordPressOutput({
+    wordpress: buildWordPressFallback({
       input,
-      first,
-      second,
+      selectedProducts: [first, second],
+      products: params.products,
       naverTitle: outputWithPlain.selected_title,
-      naverPlainText,
       observations,
     }),
     title_analysis: {
@@ -254,181 +255,6 @@ function serializeTitleEvaluations(result: TitleResult) {
     keyword_fit_score: item.keywordFitScore,
     reason: item.reason,
   }));
-}
-
-function buildFallbackWordPressOutput({
-  input,
-  first,
-  second,
-  naverTitle,
-  naverPlainText,
-  observations,
-}: {
-  input: BlogDraftInput;
-  first: ProductRecommendation;
-  second: ProductRecommendation;
-  naverTitle: string;
-  naverPlainText: string;
-  observations: ImageObservation[];
-}): WordPressDraftOutput {
-  const keyword = input.main_keyword || input.topic;
-  const contentAngle = deriveContentAngle(input, [first, second]);
-  const targetReader = input.target_reader || "선물을 준비하는 사람";
-  const imageObservationLead = buildImageObservationLead(observations);
-  const sectionHeadings = buildWordPressSectionHeadings(input, [first, second]);
-  const titles = normalizeTitleResult({
-    channel: "wordpress",
-    candidates: buildLocalTitleCandidates(input, [first, second], "wordpress"),
-    input,
-    selectedProducts: [first, second],
-    avoidTitle: naverTitle,
-  });
-  const titleCandidates = titles.title_candidates;
-  const selectedTitle = titles.selected_title;
-  const sections = [
-    {
-      id: "wp-intro",
-      heading: sectionHeadings[0],
-      body: [
-        `${withObjectParticle(keyword)} 준비할 때는 ${contentAngle.coreQuestion}부터 정리하면 선택이 훨씬 자연스러워져요.`,
-        `${targetReader}처럼 전달할 장면이 분명하면 제품을 고르는 이유도 더 또렷해집니다.`,
-        imageObservationLead,
-      ].filter(Boolean).join("\n\n"),
-    },
-    {
-      id: "wp-empathy",
-      heading: sectionHeadings[1],
-      body: formatBulletList(contentAngle.decisionAxes),
-    },
-    {
-      id: "wp-product-1",
-      heading: sectionHeadings[2],
-      body: [
-        `<mark style="background: linear-gradient(transparent 60%, #fff3a3 60%); padding: 0 0.08em;">${withSubjectParticle(first.product_name)} ${contentAngle.decisionAxes[0]} 쪽을 먼저 생각할 때 보기 좋아요</mark>.`,
-        first.owner_comment || `${input.situation || input.topic}에 맞는 선택 포인트를 먼저 보면 좋아요.`,
-        `${withObjectParticle(second.product_name)} 비교하면, ${withSubjectParticle(first.product_name)} ${contentAngle.decisionAxes[1]} 쪽을 더 또렷하게 보고 싶을 때 기준을 잡기 쉬워요.`,
-      ].join("\n\n"),
-    },
-    {
-      id: "wp-product-2",
-      heading: sectionHeadings[3],
-      body: [
-        `<mark style="background: linear-gradient(transparent 60%, #fff3a3 60%); padding: 0 0.08em;">${withSubjectParticle(second.product_name)} ${contentAngle.decisionAxes[1]} 쪽을 가볍게 풀고 싶을 때 보기 편해요</mark>.`,
-        second.owner_comment || `${input.situation || input.topic}에 맞는 전달 방식을 먼저 생각해 보면 좋아요.`,
-        `둘 중 하나가 더 낫다기보다, ${withObjectParticle(joinWithAnd(contentAngle.decisionAxes.slice(0, 2)))} 어디에 두고 싶은지에 따라 나누면 됩니다.`,
-      ].join("\n\n"),
-    },
-    {
-      id: "wp-recommend-list",
-      heading: sectionHeadings[4],
-      body: formatBulletList(contentAngle.readerSignals),
-    },
-    {
-      id: "wp-order-checklist",
-      heading: sectionHeadings[5],
-      body: formatBulletList(contentAngle.orderChecks),
-    },
-    {
-      id: "wp-cta",
-      heading: sectionHeadings[6],
-      body: input.cta || `${contentAngle.ctaLead} 어떤 쪽이 더 자연스러운지 같이 좁혀볼게요.`,
-    },
-  ];
-  const faq = [
-    {
-      q: `${withObjectParticle(keyword)} 고를 때 무엇부터 보면 좋을까요?`,
-      a: `${withObjectParticle(joinWithAnd(contentAngle.decisionAxes.slice(0, 2)))} 먼저 정한 뒤, ${withObjectParticle(joinWithAnd([first.product_name, second.product_name]))} 나누어 보면 편해요.`,
-    },
-    {
-      q: "워드프레스 글에는 해시태그를 넣어야 하나요?",
-      a: "본문 끝에는 해시태그를 붙이지 않고, 카테고리와 태그를 따로 넣는 편이 관리하기 편해요.",
-    },
-    {
-      q: "사진 설명은 어떻게 쓰면 좋을까요?",
-      a: "제품명, 상황 키워드, 사진 유형을 자연스럽게 넣고 사진에 보이지 않는 맛이나 반응은 쓰지 않아요.",
-    },
-    {
-      q: "네이버 글과 같은 내용을 써도 괜찮나요?",
-      a: "같은 제품을 다루더라도 제목, 도입부, 소제목, 문장 순서는 다르게 잡는 편이 좋아요.",
-    },
-  ];
-  const wordpress: WordPressDraftOutput = {
-    title_candidates: titleCandidates,
-    selected_title: selectedTitle,
-    slug: slugifyKoreanAware(keyword),
-    meta_description: `${withObjectParticle(keyword)} 준비할 때 ${withObjectParticle(joinWithAnd(contentAngle.decisionAxes.slice(0, 2)))} 먼저 정리하고 ${withObjectParticle(joinWithAnd([first.product_name, second.product_name]))} 나누어 보는 방법을 담았습니다.`,
-    excerpt: `${keyword}에서 ${contentAngle.coreQuestion} 먼저 정리하는 정보형 글입니다.`,
-    focus_keyword: keyword,
-    secondary_keywords: [
-      ...input.sub_keywords,
-      first.product_name,
-      second.product_name,
-      input.topic,
-    ].filter(Boolean).slice(0, 6),
-    sections,
-    faq,
-    tags: [
-      keyword,
-      input.topic,
-      ...input.sub_keywords,
-      first.product_name,
-      second.product_name,
-      "쿠키 선물",
-      "답례품 가이드",
-      "nothingmatters",
-    ].filter((tag, index, tags) => tag && tags.indexOf(tag) === index).slice(0, 15),
-    categories: ["브랜드 블로그", "답례품 가이드"],
-    image_guide: [
-      {
-        position: "첫 문단 아래",
-        image_type: "대표 사진",
-        caption: observations[0]?.caption ?? `${keyword} 기준을 보여주는 대표 사진`,
-        alt_text: `${keyword} ${first.product_name} ${second.product_name} 대표 구성 사진`,
-      },
-      {
-        position: `${first.product_name} 기준 설명 뒤`,
-        image_type: "제품 디테일",
-        caption: `${first.product_name}의 선택 포인트가 보이는 사진`,
-        alt_text: `${keyword} ${first.product_name} 제품 디테일 사진`,
-      },
-      {
-        position: `${second.product_name} 기준 설명 뒤`,
-        image_type: "전달 장면 사진",
-        caption: `${second.product_name}이 어떤 장면에 어울리는지 보여주는 사진`,
-        alt_text: `${keyword} ${second.product_name} 전달 장면 사진`,
-      },
-    ],
-    markdown_for_wordpress: "",
-  };
-
-  wordpress.markdown_for_wordpress = ensureDistinctText(formatMarkdownForWordPress(wordpress), naverPlainText);
-  return wordpress;
-}
-
-function slugifyKoreanAware(value: string) {
-  const mapped = value
-    .toLowerCase()
-    .replace(/퇴사/g, "resignation")
-    .replace(/답례품/g, "gift")
-    .replace(/쿠키/g, "cookie")
-    .replace(/결혼/g, "wedding")
-    .replace(/어린이날/g, "childrens-day")
-    .replace(/스승의 날|스승의날/g, "teacher-day")
-    .replace(/선물/g, "present")
-    .replace(/회사/g, "company")
-    .replace(/커스텀/g, "custom");
-  const slug = mapped
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .replace(/-{2,}/g, "-");
-  return slug || "nothingmatters-blog-guide";
-}
-
-function ensureDistinctText(wordpressText: string, naverText: string) {
-  const wordpressIntro = wordpressText.split(/\n{2,}/)[1]?.trim();
-  const naverIntro = naverText.split(/\n{2,}/)[1]?.trim();
-  if (!wordpressIntro || wordpressIntro !== naverIntro) return wordpressText;
-  return wordpressText.replace(wordpressIntro, `${wordpressIntro}\n\n이 글은 워드프레스용으로 고르는 기준을 중심에 두고 다시 정리했습니다.`);
 }
 
 function buildProductSectionHeading(productName: string) {

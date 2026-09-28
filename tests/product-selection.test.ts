@@ -103,9 +103,8 @@ describe("product selection scoring", () => {
     expect(output.wordpress.title_candidates.filter((title) => title.endsWith("?")).length).toBeLessThanOrEqual(1);
     expect(output.wordpress.selected_title.endsWith("?")).toBe(false);
     expect(output.wordpress.sections.map((section) => section.heading)).not.toEqual(output.sections.map((section) => section.heading));
-    expect(output.wordpress.sections.map((section) => section.heading)).toEqual(
-      expect.arrayContaining([expect.stringMatching(/^1️⃣ /), expect.stringMatching(/^7️⃣ /)]),
-    );
+    expect(output.wordpress.sections).toHaveLength(5);
+    expect(output.wordpress.sections.every((section) => !/^(?:[1-7]️⃣|##)/.test(section.heading))).toBe(true);
     expect(output.sections.map((section) => section.heading)).not.toContain("도입부");
     expect(output.sections.map((section) => section.heading)).not.toContain("상황 공감");
     expect(output.sections[0]?.heading).not.toContain(draftInput.main_keyword);
@@ -113,15 +112,15 @@ describe("product selection scoring", () => {
     expect(output.sections[1]?.heading).toContain(draftInput.sub_keywords[0]);
     expect(output.wordpress.markdown_for_wordpress).toContain("# ");
     expect(output.wordpress.markdown_for_wordpress).toContain("## ");
-    expect(output.wordpress.markdown_for_wordpress).toMatch(/마지막에 어떤 말을 남기고 싶은지|기준을 잡기 쉬워요/);
+    expect(output.wordpress.markdown_for_wordpress).toContain(selectedProducts[0].product_name);
     expect(output.wordpress.markdown_for_wordpress).not.toMatch(/추천드립니다|안내해 드립니다/);
+    expect(output.wordpress.markdown_for_wordpress).not.toMatch(/네이버 글|워드프레스 본문|이미지 ALT|<mark|## ##/);
     expect(output.plain_text_for_naver).toContain("✅ ");
-    expect(output.wordpress.markdown_for_wordpress).toContain("✅ ");
     expect(output.plain_text_for_naver).not.toContain("\n- ");
     expect(output.wordpress.markdown_for_wordpress).not.toContain("\n- ");
     expect(output.plain_text_for_naver).not.toContain("\n* ");
     expect(output.wordpress.markdown_for_wordpress).not.toContain("\n* ");
-    expect(output.wordpress.image_guide.every((item) => item.alt_text)).toBe(true);
+    expect(output.wordpress.image_guide.every((item) => item.alt_text === "")).toBe(true);
     expect(output.wordpress.markdown_for_wordpress.split(/\n{2,}/)[1]).not.toBe(output.plain_text_for_naver.split(/\n{2,}/)[1]);
     expect(output.faq).toHaveLength(4);
     expect(output.hashtags.length).toBeGreaterThanOrEqual(10);

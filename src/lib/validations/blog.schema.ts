@@ -59,6 +59,7 @@ export const wordpressSectionSchema = z.object({
 });
 
 export const wordpressDraftOutputSchema = z.object({
+  source: z.enum(["generated", "template"]).optional(),
   title_candidates: z.array(z.string()).length(5),
   selected_title: z.string(),
   slug: z.string(),
@@ -109,7 +110,7 @@ export const naverGenerationOutputSchema = naverDraftOutputSchema
 
 export const wordpressGenerationOutputSchema = wordpressDraftOutputSchema
   .omit({ markdown_for_wordpress: true })
-  .extend({ sections: z.array(wordpressSectionSchema).length(7) });
+  .extend({ sections: z.array(wordpressSectionSchema).length(5) });
 
 const titleIdeaTypeSchema = z.enum([
   "정보형",

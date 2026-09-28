@@ -57,6 +57,7 @@ export type WordPressSection = {
 };
 
 export type WordPressDraftOutput = {
+  source?: "generated" | "template";
   title_candidates: string[];
   selected_title: string;
   slug: string;

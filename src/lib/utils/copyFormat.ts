@@ -40,13 +40,13 @@ export function formatImageGuide(output: BlogDraftOutput) {
 
 export function formatMarkdownForWordPress(output: WordPressDraftOutput) {
   const sections = output.sections
-    .map((section) => `## ${section.heading}\n\n${normalizeCheckBullets(section.body.trim())}`)
+    .map((section) => `## ${cleanMarkdownHeading(section.heading)}\n\n${normalizeCheckBullets(section.body.trim())}`)
     .join("\n\n");
 
   const faq = output.faq.length
     ? [
         "## 자주 묻는 질문",
-        output.faq.map((item) => `### ${item.q}\n\n${item.a}`).join("\n\n"),
+        output.faq.map((item) => `### ${cleanMarkdownHeading(item.q)}\n\n${item.a}`).join("\n\n"),
       ].join("\n\n")
     : "";
 
@@ -63,9 +63,17 @@ export function formatMarkdownForWordPress(output: WordPressDraftOutput) {
     .trim();
 }
 
+function cleanMarkdownHeading(value: string) {
+  return value.replace(/^\s*(?:#{1,6}\s*)?(?:[1-7](?:️⃣|\.)\s*)?/, "").trim();
+}
+
 export function formatWordPressImageGuide(output?: WordPressDraftOutput | null) {
   if (!output) return "";
   return output.image_guide
-    .map((item, index) => `${index + 1}. ${item.position} - ${item.image_type}\nALT: ${item.alt_text}\n${item.caption}`)
+    .map((item, index) => [
+      `${index + 1}. ${item.position} - ${item.image_type}`,
+      item.alt_text ? `ALT: ${item.alt_text}` : "",
+      item.caption,
+    ].filter(Boolean).join("\n"))
     .join("\n\n");
 }

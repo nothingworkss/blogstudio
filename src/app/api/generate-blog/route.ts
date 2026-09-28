@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
     brand,
     selectedProducts,
     observations,
+    products,
   });
 
   const draft = await saveDraft({

@@ -41,11 +41,12 @@ import {
 } from "@/lib/product/editorial";
 import { getReferencePattern, referencePatternPayload, referenceStyles } from "@/lib/reference/blog-patterns";
 import { deriveContentAngle } from "@/lib/content/angle";
+import { buildWordPressFallback } from "@/lib/content/wordpress-fallback";
 import { articleBriefs, clusterPillars, firstTenArticles, type ArticleBrief } from "@/lib/content/cluster-plan";
 import { formatImageGuide, formatMarkdownForWordPress, formatPlainTextForNaver, formatWordPressImageGuide, normalizeCheckBullets } from "@/lib/utils/copyFormat";
 import { getSeoCheck } from "@/lib/utils/formatBlog";
 import { parseJsonFromText } from "@/lib/utils/parseJsonFromText";
-import { applySeoSectionHeadings, buildSeoSectionHeadings, buildWordPressSectionHeadings } from "@/lib/utils/seoHeadings";
+import { applySeoSectionHeadings, buildSeoSectionHeadings } from "@/lib/utils/seoHeadings";
 import { splitByComma } from "@/lib/utils/strings";
 import {
   applyLockedNaverTitle,
@@ -723,7 +724,9 @@ export function BlogStudioApp({
       setQualityCheck(null);
       setDrafts((prev) => [data.draft, ...prev.filter((draft) => draft.id !== data.draft.id)]);
       setView("editor");
-      setNotice("붙여넣은 JSON을 초안으로 반영했습니다.");
+      setNotice(parsedOutput.wordpress.source === "template"
+        ? "네이버 초안을 반영했습니다. 워드프레스에는 임시 초안이 표시됩니다. 워드프레스 본문 프롬프트로 글을 생성해 반영해 주세요."
+        : "붙여넣은 JSON을 초안으로 반영했습니다.");
     } catch (error) {
       setNotice(formatManualJsonError(error));
     }
@@ -2070,8 +2073,12 @@ function buildManualPrompt({
         ? {
             name: product.name,
             category: product.category,
+            short_description: product.short_description,
+            long_description: product.long_description,
+            fit_situations: product.fit_situations,
             strengths: product.strengths,
             cautions: product.cautions,
+            default_faq: product.default_faq,
           }
         : null,
       };
@@ -2096,7 +2103,6 @@ function buildManualPrompt({
     forbidden_words: brand.forbidden_words,
   };
   const naverSectionHeadings = buildSeoSectionHeadings(input, selectedProducts);
-  const wordpressSectionHeadings = buildWordPressSectionHeadings(input, selectedProducts);
   const contentAngle = deriveContentAngle(input, selectedProducts);
   const commonData = `
 프롬프트 버전: ${WRITING_PROMPT_VERSION}
@@ -2113,8 +2119,7 @@ ${JSON.stringify(selectedDetails, null, 2)}
 사진 관찰 결과:
 ${JSON.stringify(observations, null, 2)}
 
-이번 글의 콘텐츠 각도:
-${JSON.stringify(contentAngle, null, 2)}
+${kind === "naver" ? `이번 글의 콘텐츠 각도:\n${JSON.stringify(contentAngle, null, 2)}` : ""}
 
 원문 제거 참고 패턴:
 ${JSON.stringify(referencePatternPayload(input.reference_style), null, 2)}
@@ -2173,9 +2178,10 @@ ${commonData}
 - 네이버 본문 객체는 만들지 않는다.
 ${buildLockedWordPressTitleInstructions(selectedTitle, titleCandidates.length)}
 - 제목은 네이버 제목을 동의어로 바꾸지 않은 정보형 제목으로 이미 확정되어 있다. 모든 제목에 물음표를 붙이지 않는다.
-- sections는 아래 wordpress_section_headings를 정확히 같은 순서와 문장으로 사용한다.
-- 본문 문장은 네이버 글을 복사하지 말고 워드프레스용 사장님 정보형으로 새로 쓴다.
-- 제품은 아래 selected_products 2개만 다룬다.
+- 섹션 제목은 글의 실제 내용에 맞게 새로 짓는다. 번호 이모지, ##, 편집 라벨은 heading 값에 넣지 않는다.
+- 대표 제품의 확인된 구성을 먼저 설명한다. 공항동 픽업은 글 주제와 맞을 때만 정확히 안내한다. 두 제품을 억지로 같은 비중으로 비교하지 않는다.
+- 본문과 FAQ에는 독자가 쿠키를 고르고 수령하는 데 필요한 사실만 쓴다. 네이버·워드프레스·SEO·태그·ALT 같은 운영 정보는 쓰지 않는다.
+- 제품 정보가 부족하면 빈 문장으로 채우지 말고 확인이 필요한 사항이라고 명시한다.
 - 본문 끝에 해시태그를 붙이지 말고 tags와 categories 배열로 분리한다.
 - 출력은 설명 없이 JSON 객체만 작성한다.
 - 마크다운 코드블록(\`\`\`) 없이 JSON만 출력한다.
@@ -2183,9 +2189,6 @@ ${buildLockedWordPressTitleInstructions(selectedTitle, titleCandidates.length)}
 - 문자열 안의 줄바꿈은 실제 줄바꿈 대신 \\n으로 작성하고 마지막 항목 뒤에는 쉼표를 붙이지 않는다.
 
 ${commonData}
-
-wordpress_section_headings:
-${JSON.stringify(wordpressSectionHeadings, null, 2)}
 
 반드시 아래 워드프레스 전용 JSON 구조로 출력:
 {
@@ -2195,13 +2198,11 @@ ${JSON.stringify(wordpressSectionHeadings, null, 2)}
   "focus_keyword": "${input.main_keyword || input.topic}",
   "secondary_keywords": ["보조 키워드"],
   "sections": [
-    { "id": "wp-intro", "heading": "${wordpressSectionHeadings[0]}", "body": "본문" },
-    { "id": "wp-empathy", "heading": "${wordpressSectionHeadings[1]}", "body": "본문" },
-    { "id": "wp-product-1", "heading": "${wordpressSectionHeadings[2]}", "body": "본문" },
-    { "id": "wp-product-2", "heading": "${wordpressSectionHeadings[3]}", "body": "본문" },
-    { "id": "wp-recommend-list", "heading": "${wordpressSectionHeadings[4]}", "body": "본문" },
-    { "id": "wp-order-checklist", "heading": "${wordpressSectionHeadings[5]}", "body": "본문" },
-    { "id": "wp-cta", "heading": "${wordpressSectionHeadings[6]}", "body": "본문" }
+    { "id": "wp-answer", "heading": "독자의 질문에 답하는 제목", "body": "구체적인 첫 답과 맥락" },
+    { "id": "wp-first", "heading": "대표 제품의 실제 특징을 담은 제목", "body": "확인된 구성과 선택 이유" },
+    { "id": "wp-second", "heading": "다른 선택지의 차이를 담은 제목", "body": "확인된 구성과 차이" },
+    { "id": "wp-pickup", "heading": "예약 또는 주문 방법을 담은 제목", "body": "날짜와 수령 시 확인할 점" },
+    { "id": "wp-close", "heading": "글에 맞는 마무리 제목", "body": "독자에게 필요한 다음 행동" }
   ],
   "faq": [
     { "q": "질문", "a": "답변" },
@@ -2210,13 +2211,12 @@ ${JSON.stringify(wordpressSectionHeadings, null, 2)}
     { "q": "질문", "a": "답변" }
   ],
   "tags": ["태그1", "태그2", "태그3", "태그4", "태그5"],
-  "categories": ["브랜드 블로그", "답례품 가이드"],
+  "categories": ["글 주제에 맞는 분류"],
   "image_guide": [
-    { "position": "첫 문단 아래", "image_type": "대표 사진", "caption": "사진 설명", "alt_text": "이미지 ALT" },
-    { "position": "${selectedProducts[0]?.product_name ?? "첫 번째 제품"} 소개 뒤", "image_type": "제품 디테일", "caption": "사진 설명", "alt_text": "이미지 ALT" },
-    { "position": "${selectedProducts[1]?.product_name ?? "두 번째 제품"} 소개 뒤", "image_type": "전달 장면 사진", "caption": "사진 설명", "alt_text": "이미지 ALT" }
-  ],
-  "markdown_for_wordpress": "# ${selectedTitle}\\n\\n## ${wordpressSectionHeadings[0]}\\n\\n본문"
+    { "position": "도입 뒤", "image_type": "실제 제품 사진", "caption": "사진 확인 후 작성", "alt_text": "" },
+    { "position": "대표 제품 소개 뒤", "image_type": "제품 디테일", "caption": "사진 확인 후 작성", "alt_text": "" },
+    { "position": "예약 안내 뒤", "image_type": "포장 또는 픽업 사진", "caption": "사진 확인 후 작성", "alt_text": "" }
+  ]
 }`;
 }
 
@@ -2438,129 +2438,18 @@ function buildDefaultWordPressOutput(
   input: BlogDraftInput,
   output: Pick<BlogDraftOutput, "selected_title" | "selected_products"> & Partial<Pick<BlogDraftOutput, "plain_text_for_naver">>,
 ): WordPressDraftOutput {
-  const keyword = input.main_keyword || input.topic || "쿠키 선물";
-  const [first, second] = output.selected_products;
-  const firstName = first?.product_name ?? "첫 번째 쿠키";
-  const secondName = second?.product_name ?? "두 번째 쿠키";
-  const contentAngle = deriveContentAngle(input, output.selected_products);
-  const titles = normalizeTitleResult({
-    channel: "wordpress",
-    candidates: buildLocalTitleCandidates(input, output.selected_products, "wordpress"),
+  return buildWordPressFallback({
     input,
     selectedProducts: output.selected_products,
-    avoidTitle: output.selected_title,
+    naverTitle: output.selected_title,
   });
-  const titleCandidates = titles.title_candidates;
-  const selectedTitle = titles.selected_title;
-  const sectionHeadings = buildWordPressSectionHeadings(input, output.selected_products);
-  const sections = [
-    {
-      id: "wp-intro",
-      heading: sectionHeadings[0],
-      body: `${keyword} 준비를 시작할 때는 ${contentAngle.coreQuestion}부터 정리하면 선택이 한결 자연스러워져요.`,
-    },
-    {
-      id: "wp-empathy",
-      heading: sectionHeadings[1],
-      body: contentAngle.decisionAxes.map((item) => `✅ ${item}`).join("\n"),
-    },
-    {
-      id: "wp-product-1",
-      heading: sectionHeadings[2],
-      body: `<mark style="background: linear-gradient(transparent 60%, #fff3a3 60%); padding: 0 0.08em;">${firstName} 선택은 ${contentAngle.decisionAxes[0]} 쪽을 먼저 살펴볼 때 비교하기 좋아요</mark>. 제품 자체보다 전달할 장면을 먼저 보면 선택 이유가 더 또렷해집니다.`,
-    },
-    {
-      id: "wp-product-2",
-      heading: sectionHeadings[3],
-      body: `<mark style="background: linear-gradient(transparent 60%, #fff3a3 60%); padding: 0 0.08em;">${secondName} 선택은 ${contentAngle.decisionAxes[1]} 쪽을 함께 살펴볼 때 보기 편해요</mark>. ${firstName}과 비교할 때도 어느 하나가 더 낫다기보다, 지금 전하려는 장면에 맞는 쪽으로 나누면 됩니다.`,
-    },
-    {
-      id: "wp-recommend-list",
-      heading: sectionHeadings[4],
-      body: contentAngle.readerSignals.map((item) => `✅ ${item}`).join("\n"),
-    },
-    {
-      id: "wp-order-checklist",
-      heading: sectionHeadings[5],
-      body: contentAngle.orderChecks.map((item) => `✅ ${item}`).join("\n"),
-    },
-    {
-      id: "wp-cta",
-      heading: sectionHeadings[6],
-      body: input.cta || `${contentAngle.ctaLead} 어떤 구성이 편할지 같이 좁혀볼게요.`,
-    },
-  ];
-  const wordpress: WordPressDraftOutput = {
-    title_candidates: titleCandidates,
-    selected_title: selectedTitle,
-    slug: slugifyKoreanAware(keyword),
-    meta_description: `${keyword} 준비에서 ${contentAngle.decisionAxes.slice(0, 2).join(", ")}처럼 먼저 볼 기준과 ${firstName}, ${secondName} 비교 방법을 정리했습니다.`,
-    excerpt: `${keyword} 준비에서 ${contentAngle.coreQuestion} 먼저 정리하는 워드프레스용 정보 글입니다.`,
-    focus_keyword: keyword,
-    secondary_keywords: [input.topic, ...input.sub_keywords, firstName, secondName].filter(Boolean).slice(0, 6),
-    sections,
-    faq: [
-      {
-        q: `${keyword}으로 어떤 구성을 먼저 보면 좋을까요?`,
-        a: `${contentAngle.decisionAxes.slice(0, 2).join(", ")}부터 정한 뒤 ${firstName}와 ${secondName}을 비교하면 편해요.`,
-      },
-      {
-        q: "네이버 글과 같은 내용을 써도 괜찮나요?",
-        a: "같은 제품을 다루더라도 제목, 도입부, 소제목, 문장 순서는 다르게 잡는 편이 좋아요.",
-      },
-      {
-        q: "워드프레스 본문 끝에 해시태그를 넣어야 하나요?",
-        a: "해시태그보다 태그와 카테고리를 따로 입력하는 편이 워드프레스 관리에 맞아요.",
-      },
-      {
-        q: "이미지 ALT는 어떻게 쓰면 좋나요?",
-        a: "제품명, 상황 키워드, 사진 유형을 넣고 사진에 보이지 않는 맛이나 반응은 쓰지 않아요.",
-      },
-    ],
-    tags: [
-      keyword,
-      input.topic,
-      ...input.sub_keywords,
-      firstName,
-      secondName,
-      "쿠키답례품",
-      "수제쿠키",
-      "브랜드블로그",
-      "nothingmatters",
-    ].filter((tag, index, tags) => tag && tags.indexOf(tag) === index).slice(0, 15),
-    categories: ["브랜드 블로그", "답례품 가이드"],
-    image_guide: [
-      {
-        position: "첫 문단 아래",
-        image_type: "대표 사진",
-        caption: `${keyword} 기준을 보여주는 대표 사진`,
-        alt_text: `${keyword} ${firstName} ${secondName} 대표 구성 사진`,
-      },
-      {
-        position: `${firstName} 기준 설명 뒤`,
-        image_type: "제품 디테일",
-        caption: `${firstName}의 선택 포인트가 보이는 사진`,
-        alt_text: `${keyword} ${firstName} 제품 디테일 사진`,
-      },
-      {
-        position: `${secondName} 기준 설명 뒤`,
-        image_type: "전달 장면 사진",
-        caption: `${secondName}이 어떤 장면에 어울리는지 보여주는 사진`,
-        alt_text: `${keyword} ${secondName} 전달 장면 사진`,
-      },
-    ],
-    markdown_for_wordpress: "",
-  };
-
-  return {
-    ...wordpress,
-    markdown_for_wordpress: formatMarkdownForWordPress(wordpress),
-  };
 }
 
 function normalizeWordPressDraft(rawWordPress: unknown, input: BlogDraftInput, naverOutput: BlogDraftOutput): WordPressDraftOutput {
   const raw = rawWordPress && typeof rawWordPress === "object" ? rawWordPress as Record<string, unknown> : {};
   const fallback = buildDefaultWordPressOutput(input, naverOutput);
+  const legacyTemplate = /네이버 글과 같은 내용을|워드프레스 본문 끝에|이미지 ALT는 어떻게|워드프레스용 정보 글/.test(JSON.stringify(raw));
+  if (legacyTemplate) return fallback;
   const titles = normalizeTitleResult({
     channel: "wordpress",
     candidates: normalizeStringArray(raw.title_candidates, 5, fallback.title_candidates),
@@ -2570,6 +2459,7 @@ function normalizeWordPressDraft(rawWordPress: unknown, input: BlogDraftInput, n
     avoidTitle: naverOutput.selected_title,
   });
   const wordpress: WordPressDraftOutput = {
+    source: raw.source === "template" || !Array.isArray(raw.sections) ? "template" : "generated",
     title_candidates: titles.title_candidates,
     selected_title: titles.selected_title,
     slug: typeof raw.slug === "string" && raw.slug ? raw.slug : fallback.slug,
@@ -2577,7 +2467,7 @@ function normalizeWordPressDraft(rawWordPress: unknown, input: BlogDraftInput, n
     excerpt: typeof raw.excerpt === "string" && raw.excerpt ? raw.excerpt : fallback.excerpt,
     focus_keyword: typeof raw.focus_keyword === "string" && raw.focus_keyword ? raw.focus_keyword : fallback.focus_keyword,
     secondary_keywords: normalizeStringArray(raw.secondary_keywords, 0, fallback.secondary_keywords).slice(0, 6),
-    sections: normalizeWordPressSections(raw.sections, fallback.sections, naverOutput.sections),
+    sections: normalizeWordPressSections(raw.sections, fallback.sections),
     faq: normalizeWordPressFaq(raw.faq, fallback.faq),
     tags: normalizeWordPressTags(raw.tags, fallback.tags, input, naverOutput.selected_products),
     categories: normalizeStringArray(raw.categories, 1, fallback.categories).slice(0, 5),
@@ -2593,13 +2483,12 @@ function normalizeWordPressDraft(rawWordPress: unknown, input: BlogDraftInput, n
 function normalizeWordPressSections(
   rawSections: unknown,
   fallback: WordPressDraftOutput["sections"],
-  naverSections: BlogDraftOutput["sections"],
 ) {
-  const sectionCount = Math.max(naverSections.length, fallback.length, Array.isArray(rawSections) ? rawSections.length : 0);
+  const sectionCount = Math.max(fallback.length, Array.isArray(rawSections) ? rawSections.length : 0);
   if (!Array.isArray(rawSections)) {
     return Array.from({ length: sectionCount }, (_, index) => ({
       id: fallback[index]?.id ?? `wp-section-${index + 1}`,
-      heading: ensureWordPressSectionHeading(fallback[index]?.heading ?? `선택 기준 ${index + 1}`, index),
+      heading: ensureWordPressSectionHeading(fallback[index]?.heading ?? `선택 기준 ${index + 1}`),
       body: fallback[index]?.body ?? "",
     }));
   }
@@ -2608,27 +2497,21 @@ function normalizeWordPressSections(
       const raw = section as { id?: unknown; heading?: unknown; body?: unknown };
       return {
         id: typeof raw.id === "string" ? raw.id : fallback[index]?.id ?? `wp-section-${index + 1}`,
-        heading: ensureWordPressSectionHeading(
-          typeof raw.heading === "string" ? raw.heading : fallback[index]?.heading ?? `선택 기준 ${index + 1}`,
-          index,
-        ),
+        heading: ensureWordPressSectionHeading(typeof raw.heading === "string" ? raw.heading : fallback[index]?.heading ?? `선택 기준 ${index + 1}`),
         body: typeof raw.body === "string" ? normalizeCheckBullets(raw.body) : (fallback[index]?.body ?? ""),
       };
     })
     .filter((section) => section.heading && section.body);
   const aligned = Array.from({ length: sectionCount }, (_, index) => ({
     id: parsed[index]?.id ?? fallback[index]?.id ?? `wp-section-${index + 1}`,
-    heading: ensureWordPressSectionHeading(parsed[index]?.heading ?? fallback[index]?.heading ?? `선택 기준 ${index + 1}`, index),
+    heading: ensureWordPressSectionHeading(parsed[index]?.heading ?? fallback[index]?.heading ?? `선택 기준 ${index + 1}`),
     body: parsed[index]?.body ?? fallback[index]?.body ?? "",
   }));
   return aligned.length >= 5 ? aligned : fallback;
 }
 
-function ensureWordPressSectionHeading(heading: string, index: number) {
-  const prefixes = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣"];
-  const prefix = prefixes[index] ?? `${index + 1}.`;
-  const cleanHeading = heading.replace(/^[1-7](?:️⃣|\.)\s*/, "").trim();
-  return `${prefix} ${cleanHeading}`;
+function ensureWordPressSectionHeading(heading: string) {
+  return heading.replace(/^\s*(?:#{1,6}\s*)?(?:[1-7](?:️⃣|\.)\s*)?/, "").trim();
 }
 
 function normalizeWordPressFaq(rawFaq: unknown, fallback: WordPressDraftOutput["faq"]) {
@@ -2638,7 +2521,7 @@ function normalizeWordPressFaq(rawFaq: unknown, fallback: WordPressDraftOutput["
       const raw = item as { q?: unknown; a?: unknown };
       return typeof raw.q === "string" && typeof raw.a === "string" ? { q: raw.q, a: raw.a } : null;
     })
-    .filter(Boolean) as WordPressDraftOutput["faq"];
+    .filter((item) => item && !/네이버|워드프레스|해시태그|SEO|ALT|메타 설명/i.test(item.q)) as WordPressDraftOutput["faq"];
   return [...parsed, ...fallback].slice(0, 4);
 }
 
@@ -2675,27 +2558,8 @@ function normalizeWordPressImageGuide(rawGuide: unknown, fallback: WordPressDraf
         alt_text: typeof raw.alt_text === "string" ? raw.alt_text : fallback[index]?.alt_text ?? "",
       };
     })
-    .filter((item) => item.position && item.image_type && item.alt_text);
+    .filter((item) => item.position && item.image_type);
   return parsed.length >= 3 ? parsed : fallback;
-}
-
-function slugifyKoreanAware(value: string) {
-  const mapped = value
-    .toLowerCase()
-    .replace(/퇴사/g, "resignation")
-    .replace(/답례품/g, "gift")
-    .replace(/쿠키/g, "cookie")
-    .replace(/결혼/g, "wedding")
-    .replace(/어린이날/g, "childrens-day")
-    .replace(/스승의 날|스승의날/g, "teacher-day")
-    .replace(/선물/g, "present")
-    .replace(/회사/g, "company")
-    .replace(/커스텀/g, "custom");
-  const slug = mapped
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .replace(/-{2,}/g, "-");
-  return slug || "nothingmatters-blog-guide";
 }
 
 function normalizeRecommendations(rawProducts: unknown, input: BlogDraftInput, fallback: ProductRecommendation[]) {
@@ -3176,6 +3040,11 @@ function WordPressEditor({
 
   return (
     <div className="grid gap-3">
+      {wordpress.source === "template" ? (
+        <div className="rounded-md border border-[#f0d6a7] bg-[#fff8e9] p-3 text-[12px] leading-5 text-[#765520]">
+          워드프레스 글은 아직 생성되지 않았습니다. 아래 내용은 임시 초안입니다. 워드프레스 본문 프롬프트로 별도 글을 만든 뒤 JSON을 반영해 주세요.
+        </div>
+      ) : null}
       <TitleSelector
         channel="wordpress"
         mainKeyword={input.main_keyword}

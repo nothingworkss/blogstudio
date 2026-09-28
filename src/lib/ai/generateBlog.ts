@@ -1,6 +1,6 @@
 import type { BlogDraftInput, BlogDraftOutput, WordPressDraftOutput } from "@/types/blog";
 import type { ImageObservation } from "@/types/image";
-import type { Brand, ProductRecommendation } from "@/types/product";
+import type { Brand, Product, ProductRecommendation } from "@/types/product";
 import { naverGenerationOutputSchema, titleGenerationOutputSchema, wordpressGenerationOutputSchema } from "@/lib/validations/blog.schema";
 import { brandStylePrompt } from "@/lib/prompts/brand-style";
 import { blogLayoutPrompt } from "@/lib/prompts/blog-layout";
@@ -19,6 +19,7 @@ export async function generateBlog(params: {
   brand: Brand;
   selectedProducts: ProductRecommendation[];
   observations: ImageObservation[];
+  products?: Product[];
 }) {
   const fallbackOutput = fallbackGenerateBlog(params);
   const contentAngle = deriveContentAngle(params.input, params.selectedProducts);
@@ -85,9 +86,18 @@ export async function generateBlog(params: {
     input: {
       input: params.input,
       selected_products: naverOutput.selected_products,
+      product_facts: params.products?.filter((product) =>
+        naverOutput.selected_products.some((selected) => selected.product_name === product.name),
+      ).map((product) => ({
+        name: product.name,
+        short_description: product.short_description,
+        long_description: product.long_description,
+        strengths: product.strengths,
+        cautions: product.cautions,
+        default_faq: product.default_faq,
+      })) ?? [],
       image_observations: params.observations,
       reference_pattern: referencePatternPayload(params.input.reference_style),
-      content_angle: contentAngle,
       naver_reference: {
         selected_title: naverOutput.selected_title,
         section_roles: naverOutput.sections.map((section) => section.type),
@@ -108,7 +118,7 @@ export async function generateBlog(params: {
 
   return {
     ...naverOutput,
-    wordpress,
+    wordpress: { ...wordpress, source: wordpressResult ? "generated" as const : "template" as const },
     title_analysis: {
       naver: serializeTitleEvaluations(titlePlan.naver),
       wordpress: serializeTitleEvaluations(titlePlan.wordpress),
@@ -159,13 +169,12 @@ function normalizeGeneratedWordPress({
       "markdown_for_wordpress" in wordpress ? wordpress.markdown_for_wordpress : "",
     title_candidates: titles.title_candidates,
     selected_title: titles.selected_title,
-    sections: naverOutput.sections.map((section, index) => ({
-      id: wordpress.sections[index]?.id ?? fallback.sections[index]?.id ?? `wp-section-${index + 1}`,
+    sections: fallback.sections.map((section, index) => ({
+      id: wordpress.sections[index]?.id ?? section.id,
       heading: ensureWordPressHeading(
-        wordpress.sections[index]?.heading || fallback.sections[index]?.heading || section.heading || "선택 기준",
-        index,
+        wordpress.sections[index]?.heading || section.heading,
       ),
-      body: normalizeCheckBullets(wordpress.sections[index]?.body || fallback.sections[index]?.body || ""),
+      body: normalizeCheckBullets(wordpress.sections[index]?.body || section.body),
     })),
   };
 
@@ -175,9 +184,6 @@ function normalizeGeneratedWordPress({
   };
 }
 
-function ensureWordPressHeading(heading: string, index: number) {
-  const prefixes = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣"];
-  const prefix = prefixes[index] ?? `${index + 1}.`;
-  const cleanHeading = heading.replace(/^[1-7](?:️⃣|\.)\s*/, "").trim();
-  return `${prefix} ${cleanHeading}`;
+function ensureWordPressHeading(heading: string) {
+  return heading.replace(/^\s*(?:#{1,6}\s*)?(?:[1-7](?:️⃣|\.)\s*)?/, "").trim();
 }

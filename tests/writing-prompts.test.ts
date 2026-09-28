@@ -42,8 +42,8 @@ describe("writing prompt contracts", () => {
     expect(blogLayoutPrompt).toContain("사장님 생활 말투");
     expect(blogLayoutPrompt).toContain("입력에 없는 작업 장면은 만들지 않는다");
     expect(blogLayoutPrompt).toContain("생활형 판단");
-    expect(wordpressLayoutPrompt).toContain("생활감 있는 사장님 존댓말");
-    expect(wordpressLayoutPrompt).toContain("새 작업 장면이나 감정을 만들지 않는다");
+    expect(wordpressLayoutPrompt).toContain("사장님 생활 말투");
+    expect(wordpressLayoutPrompt).toContain("없는 실수, 작업 장면, 고객 반응, 감정은 만들지 않는다");
   });
 
   it("treats product mappings as hints and keeps the current topic authoritative", () => {
@@ -53,12 +53,12 @@ describe("writing prompt contracts", () => {
   });
 
   it("gives WordPress a distinct editorial contract", () => {
-    expect(wordpressLayoutPrompt).toContain("네이버 문장을 변환하거나 재사용하지 않는다");
+    expect(wordpressLayoutPrompt).toContain("실제로 도움이 되는 이야기");
     expect(wordpressLayoutPrompt).toContain("번호 이모지");
     expect(wordpressLayoutPrompt).toContain("<mark");
-    expect(wordpressLayoutPrompt).toContain("해시태그를 본문에 넣지 않는다");
-    expect(wordpressLayoutPrompt).toContain("제목이 약속한 답");
-    expect(wordpressLayoutPrompt).toContain("제목·도입·H2에 같은 표현을 반복하지 않는다");
+    expect(wordpressLayoutPrompt).toContain("본문·FAQ에 네이버, 워드프레스, SEO");
+    expect(wordpressLayoutPrompt).toContain("sections는 정확히 5개");
+    expect(wordpressLayoutPrompt).toContain("첫 문단에서 그 질문에 구체적으로 답한다");
   });
 
   it("keeps section regeneration inside the same evidence and keyword rules", () => {
